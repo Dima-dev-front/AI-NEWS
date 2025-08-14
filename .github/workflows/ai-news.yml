@@ -47,10 +47,6 @@ jobs:
           MODEL_NAME: ${{ secrets.MODEL_NAME }}
           DISABLE_OPENAI: ${{ secrets.DISABLE_OPENAI }}
           RSS_FEEDS: ${{ vars.RSS_FEEDS }}
-          DISCOVERY_MODE: ${{ vars.DISCOVERY_MODE }}
-          DISCOVERY_QUERY: ${{ vars.DISCOVERY_QUERY }}
-          SEARCH_PROVIDER: ${{ vars.SEARCH_PROVIDER }}
-          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
         run: |
           cat > .env <<EOF
           TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
@@ -60,10 +56,6 @@ jobs:
           MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
           DISABLE_OPENAI=${DISABLE_OPENAI:-0}
           RSS_FEEDS=${RSS_FEEDS}
-          DISCOVERY_MODE=${DISCOVERY_MODE:-rss}
-          DISCOVERY_QUERY=${DISCOVERY_QUERY}
-          SEARCH_PROVIDER=${SEARCH_PROVIDER:-serpapi}
-          SERPAPI_API_KEY=${SERPAPI_API_KEY}
           CHECK_INTERVAL_MIN=15
           MAX_POSTS_PER_CYCLE=1
           POST_DELAY_SEC=2
@@ -84,7 +76,7 @@ jobs:
             python -u bot.py || true
             echo "[AI-NEWS] Git status after iteration:" && git status --porcelain data || true
             # commit state after each iteration to persist dedupe across jobs
-            git add data/published.json data/recent_titles.json || true
+            git add -f data/published.json data/recent_titles.json || true
             if ! git diff --cached --quiet -- data; then
               git commit -m "chore(data): update published/titles [skip ci]" || true
               git pull --rebase || true
@@ -101,7 +93,7 @@ jobs:
 
       - name: Commit data changes (published/titles)
         run: |
-          git add data/published.json data/recent_titles.json || true
+          git add -f data/published.json data/recent_titles.json || true
           if ! git diff --cached --quiet -- data; then
             git config user.name "github-actions"
             git config user.email "github-actions@github.com"
