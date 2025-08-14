@@ -8,7 +8,8 @@ from typing import Set, Tuple, Optional
 
 from dotenv import load_dotenv
 
-from news import NewsFetcher
+from news import NewsFetcher, build_items_from_urls
+from search import discover_urls
 from summarizer import Summarizer
 from bot_utils import format_message_html, send_to_telegram, format_message_plain
 
@@ -144,6 +145,8 @@ def main() -> None:
 	locale = os.getenv("LOCALE", "ru")
 	country = os.getenv("COUNTRY", "RU")
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
+	discovery_mode = os.getenv("DISCOVERY_MODE", "rss").strip().lower()
+	discovery_query = os.getenv("DISCOVERY_QUERY", "artificial intelligence news last 24 hours")
 	run_once = os.getenv("RUN_ONCE", "").lower() in ("1", "true", "yes", "on")
 
 	try:
@@ -167,7 +170,7 @@ def main() -> None:
 		logger.error("TELEGRAM_TOKEN and CHAT_ID must be set")
 		sys.exit(1)
 
-	if not rss_feeds:
+	if discovery_mode == "rss" and not rss_feeds:
 		logger.error("RSS_FEEDS must be set (Google News is disabled)")
 		sys.exit(1)
 
@@ -189,7 +192,11 @@ def main() -> None:
 
 	while True:
 		try:
-			items = fetcher.fetch(max_items=20)
+			if discovery_mode == "search":
+				urls = discover_urls(query=discovery_query, locale=locale, country=country, num_results=30)
+				items = build_items_from_urls(urls, fetcher)
+			else:
+				items = fetcher.fetch(max_items=20)
 			logger.info("Fetched %d items", len(items))
 
 			# Позволяем ИИ выбрать самые интересные элементы (по заголовкам/ссылкам)
