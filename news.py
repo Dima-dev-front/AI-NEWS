@@ -216,7 +216,6 @@ class NewsFetcher:
 
 		image = None
 		description = None
-		title_text = None
 		canonical_url = None
 		try:
 			soup = BeautifulSoup(resp.text, "html.parser")
@@ -240,22 +239,6 @@ class NewsFetcher:
 			if canon_link:
 				canonical_url = self._canonicalize_url(canon_link)
 				page_url = canonical_url or page_url
-
-			# title
-			try:
-				for attrs in (
-					{"property": "og:title"},
-					{"name": "twitter:title"},
-				):
-					meta_t = soup.find("meta", attrs=attrs)
-					if meta_t and meta_t.get("content"):
-						title_text = meta_t.get("content").strip(); break
-				if not title_text:
-					page_title = soup.find("title")
-					if page_title and page_title.text:
-						title_text = page_title.text.strip()
-			except Exception:
-				title_text = title_text or None
 
 			for attrs in (
 				{"property": "og:image:secure_url"},
@@ -282,50 +265,7 @@ class NewsFetcher:
 					description = meta.get("content").strip(); break
 		except Exception as exc:
 			logger.info("Failed parsing article meta: %s", exc)
-		return {"image": image, "description": description, "canonical_url": canonical_url or page_url, "title": title_text}
-
-
-def build_items_from_urls(urls: List[str], fetcher: NewsFetcher, timeout_sec: int = 10) -> List[Dict[str, Optional[str]]]:
-	"""
-	Построить список item'ов из произвольных URL: получаем метаданные страницы,
-	каноникал, изображение и описание. Заголовок берём из meta/title.
-	"""
-	results: List[Dict[str, Optional[str]]] = []
-	seen_links: set[str] = set()
-	seen_titles: set[str] = set()
-	for raw_url in urls:
-		if not raw_url:
-			continue
-		try:
-			canon = fetcher._canonicalize_url(raw_url)
-		except Exception:
-			canon = raw_url
-		if canon in seen_links:
-			continue
-		meta = fetcher._get_article_meta(canon, timeout_sec=timeout_sec) or {}
-		final_link = fetcher._canonicalize_url(meta.get("canonical_url") or canon)
-		if final_link in seen_links:
-			continue
-		seen_links.add(final_link)
-
-		title = (meta.get("title") or final_link).strip()
-		title_key = fetcher._title_key(title)
-		if title_key in seen_titles:
-			continue
-		seen_titles.add(title_key)
-
-		meta_image = meta.get("image")
-		image_url = fetcher._prefer_article_image(None, meta_image)
-		if not image_url and fetcher.fallback_image_url:
-			image_url = fetcher.fallback_image_url
-
-		results.append({
-			"title": title,
-			"link": final_link,
-			"image_url": image_url,
-			"description": meta.get("description") or None,
-		})
-	return results
+		return {"image": image, "description": description, "canonical_url": canonical_url or page_url}
 
 	def _canonicalize_url(self, url: str) -> str:
 		try:
