@@ -116,9 +116,14 @@ class NewsFetcher:
 					if enclosure and enclosure.get("url") and (enclosure.get("type") or "").startswith("image"):
 						feed_image = enclosure.get("url")
 
-				# Мета со страницы статьи
+				# Мета со страницы статьи (включая canonical)
 				article_desc = None
 				meta = self._get_article_meta(canon_link)
+				# Если страница объявляет canonical — используем его для более устойчивой дедупликации
+				if meta and meta.get("canonical_url"):
+					cand = self._canonicalize_url(meta.get("canonical_url"))
+					if cand and cand.startswith("http") and not urlparse(cand).netloc.endswith("news.google.com"):
+						canon_link = cand
 				meta_image = meta.get("image") if meta else None
 				if meta and meta.get("description"):
 					article_desc = meta.get("description")
@@ -211,6 +216,7 @@ class NewsFetcher:
 
 		image = None
 		description = None
+		canonical_url = None
 		try:
 			soup = BeautifulSoup(resp.text, "html.parser")
 			host = urlparse(resp.url).netloc
@@ -220,10 +226,19 @@ class NewsFetcher:
 					return self._get_article_meta(extra, timeout_sec=timeout_sec)
 
 			# canonical URL (если есть) — влияет на дедупликацию
-			canon_link_tag = soup.find("link", attrs={"rel": ["canonical", "Canonical"]})
-			if canon_link_tag and canon_link_tag.get("href"):
-				canon = canon_link_tag.get("href")
-				page_url = self._canonicalize_url(canon)
+			canon_link = None
+			try:
+				# rel может быть списком; ищем тег, где есть 'canonical'
+				for l in soup.find_all("link"):
+					rel = l.get("rel")
+					if rel and ("canonical" in rel or "Canonical" in rel):
+						canon_link = l.get("href")
+						break
+			except Exception:
+				canon_link = None
+			if canon_link:
+				canonical_url = self._canonicalize_url(canon_link)
+				page_url = canonical_url or page_url
 
 			for attrs in (
 				{"property": "og:image:secure_url"},
@@ -250,7 +265,7 @@ class NewsFetcher:
 					description = meta.get("content").strip(); break
 		except Exception as exc:
 			logger.info("Failed parsing article meta: %s", exc)
-		return {"image": image, "description": description}
+		return {"image": image, "description": description, "canonical_url": canonical_url or page_url}
 
 	def _canonicalize_url(self, url: str) -> str:
 		try:
