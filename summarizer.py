@@ -18,7 +18,7 @@ class Summarizer:
             # xAI (Grok) via OpenAI-compatible endpoint
             self.provider = "xai"
             self.api_key = api_key or xai_key_env
-            self.model_name = model_name or os.getenv("MODEL_NAME", "grok-2-latest")
+            self.model_name = model_name or os.getenv("MODEL_NAME") or "grok-2-latest"
             self.base_url = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1").strip()
             self.disabled = not bool(self.api_key)
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url) if not self.disabled else None
@@ -26,7 +26,7 @@ class Summarizer:
             # Groq via OpenAI-compatible endpoint
             self.provider = "groq"
             self.api_key = api_key or groq_key_env
-            self.model_name = model_name or os.getenv("MODEL_NAME", "llama-3.1-8b-instant")
+            self.model_name = model_name or os.getenv("MODEL_NAME") or "llama-3.1-8b-instant"
             self.base_url = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").strip()
             self.disabled = not bool(self.api_key)
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url) if not self.disabled else None
@@ -34,7 +34,7 @@ class Summarizer:
             # Default: OpenAI
             self.provider = "openai"
             self.api_key = api_key or os.getenv("OPENAI_API_KEY", "")
-            self.model_name = model_name or os.getenv("MODEL_NAME", "gpt-4o-mini")
+            self.model_name = model_name or os.getenv("MODEL_NAME") or "gpt-4o-mini"
             self.disabled = os.getenv("DISABLE_OPENAI", "").lower() in ("1", "true", "yes", "on") or not bool(self.api_key)
             self.client = OpenAI(api_key=self.api_key) if (self.api_key and not self.disabled) else None
 
