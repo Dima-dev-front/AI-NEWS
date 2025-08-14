@@ -64,3 +64,65 @@ class Summarizer:
         except Exception as exc:
             logger.error("%s summarize failed: %s", self.provider.upper(), exc)
             return ""
+
+    def select_best(self, items: list[dict]) -> list[int]:
+        """Return list of preferred indices (0-based) for items, best first.
+
+        Each item is expected to have keys: 'title' and optional 'link'.
+        """
+        if self.disabled or not self.client or not items:
+            return []
+        # Prepare compact numbered list to keep tokens low
+        lines = []
+        for idx, it in enumerate(items[:20]):
+            title = str(it.get("title") or "").strip()
+            link = str(it.get("link") or "").strip()
+            domain = ""
+            try:
+                from urllib.parse import urlparse
+                domain = urlparse(link).netloc or ""
+            except Exception:
+                domain = ""
+            line = f"{idx}. {title}" + (f" — {domain}" if domain else "")
+            lines.append(line)
+        list_text = "\n".join(lines)
+        prompt = (
+            "Ти — редактор добірки новин. З наведеного списку обери 3 найцікавіші, \n"
+            "враховуючи глобальну важливість, новизну, потенційний вплив на ІТ/ШІ, \n"
+            "та різноманітність тем. Виведи ЛИШЕ валідний JSON без пояснень у форматі \n"
+            "{\"best\": [i1, i2, i3]} де i — це індекси зі списку нижче (0‑based). \n"
+            "Якщо впевнений лише у 1–2 пунктах — поверни їх. Без зайвого тексту.\n\n"
+            f"Список:\n{list_text}\n\nВідповідь (ЛИШЕ JSON):"
+        )
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Ти обираєш найцікавіші новини. Відповідаєш ТІЛЬКИ валідним JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.2,
+                max_tokens=200,
+            )
+            text = completion.choices[0].message.content.strip()
+            import json as _json
+            try:
+                obj = _json.loads(text)
+                best = obj.get("best") if isinstance(obj, dict) else None
+                if isinstance(best, list):
+                    # keep valid indices and preserve order
+                    result = []
+                    for v in best:
+                        try:
+                            i = int(v)
+                            if 0 <= i < len(items) and i not in result:
+                                result.append(i)
+                        except Exception:
+                            continue
+                    return result
+            except Exception:
+                return []
+            return []
+        except Exception as exc:
+            logger.error("%s select_best failed: %s", self.provider.upper(), exc)
+            return []

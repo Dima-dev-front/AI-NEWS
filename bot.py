@@ -192,8 +192,20 @@ def main() -> None:
 			items = fetcher.fetch(max_items=20)
 			logger.info("Fetched %d items", len(items))
 
+			# Позволяем ИИ выбрать самые интересные элементы (по заголовкам/ссылкам)
+			candidate_view = [{"title": (it.get("title") or ""), "link": (it.get("link") or "")} for it in items]
+			best_indices: list[int] = []
+			try:
+				best_indices = summarizer.select_best(candidate_view[:20]) or []
+			except Exception as _:
+				best_indices = []
+			# Построить порядок обхода: сначала предложенные ИИ, затем остальные
+			seen_idx = set(int(i) for i in best_indices if isinstance(i, int) and 0 <= i < len(items))
+			ordered_indices = list(seen_idx) + [i for i in range(len(items)) if i not in seen_idx]
+
 			new_count = 0
-			for item in items:
+			for idx in ordered_indices:
+				item = items[idx]
 				title = item.get("title") or ""
 				link = item.get("link") or ""
 				image_url = item.get("image_url") or None
