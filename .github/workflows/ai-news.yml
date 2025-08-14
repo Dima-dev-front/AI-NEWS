@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: ai-news-cron
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   run-on-schedule:
@@ -37,6 +37,21 @@ jobs:
           mkdir -p data
           [ -f data/published.json ] || echo "[]" > data/published.json
           [ -f data/recent_titles.json ] || echo "[]" > data/recent_titles.json
+
+      - name: Show HEAD and sanity-check code
+        run: |
+          echo "HEAD=" $(git rev-parse HEAD)
+          python - <<'PY'
+import sys
+from pathlib import Path
+print('news.py exists:', Path('news.py').exists())
+import importlib.util
+spec = importlib.util.spec_from_file_location('news', 'news.py')
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+print('has _canonicalize_url:', hasattr(mod.NewsFetcher, '_canonicalize_url'))
+sys.exit(0 if hasattr(mod.NewsFetcher, '_canonicalize_url') else 1)
+PY
 
       - name: Create .env from secrets/vars
         env:
