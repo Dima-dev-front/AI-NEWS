@@ -2,7 +2,7 @@ name: ai-news-cron
 
 on:
   schedule:
-    - cron: "*/15 * * * *"  # каждые 15 минут
+    - cron: "*/2 * * * *"  # каждые 2 минуты
   workflow_dispatch: {}
 
 permissions:
