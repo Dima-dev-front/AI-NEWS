@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # allow pushing back
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -66,17 +68,21 @@ jobs:
           ITERATIONS: 5
           SLEEP_SEC: 120
         run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
           i=1
           while [ "$i" -le "${ITERATIONS}" ]; do
             echo "[AI-NEWS] Iteration $i/${ITERATIONS}"
             python -u bot.py || true
+            echo "[AI-NEWS] Git status after iteration:" && git status --porcelain data || true
             # commit state after each iteration to persist dedupe across jobs
-            if ! git diff --quiet -- data; then
-              git config user.name "github-actions"
-              git config user.email "github-actions@github.com"
-              git add data/published.json data/recent_titles.json || true
-              git commit -m "chore(data): update published/titles [skip ci]"
+            git add data/published.json data/recent_titles.json || true
+            if ! git diff --cached --quiet -- data; then
+              git commit -m "chore(data): update published/titles [skip ci]" || true
+              git pull --rebase || true
               git push || true
+            else
+              echo "[AI-NEWS] No data changes to commit"
             fi
             if [ "$i" -lt "${ITERATIONS}" ]; then
               echo "Sleeping ${SLEEP_SEC}s..."
@@ -87,12 +93,15 @@ jobs:
 
       - name: Commit data changes (published/titles)
         run: |
-          if ! git diff --quiet -- data; then
+          git add data/published.json data/recent_titles.json || true
+          if ! git diff --cached --quiet -- data; then
             git config user.name "github-actions"
             git config user.email "github-actions@github.com"
-            git add data/published.json data/recent_titles.json
-            git commit -m "chore(data): update published and titles [skip ci]"
-            git push
+            git commit -m "chore(data): update published and titles [skip ci]" || true
+            git pull --rebase || true
+            git push || true
+          else
+            echo "[AI-NEWS] No data changes to commit at finalization"
           fi
 
 
