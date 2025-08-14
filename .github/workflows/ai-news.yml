@@ -73,6 +73,13 @@ jobs:
         env:
           ITERATIONS: 5
           SLEEP_SEC: 120
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+          MODEL_NAME: ${{ secrets.MODEL_NAME }}
+          DISABLE_OPENAI: ${{ secrets.DISABLE_OPENAI }}
+          RSS_FEEDS: ${{ vars.RSS_FEEDS }}
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -98,6 +105,14 @@ jobs:
           done
 
       - name: Commit data changes (published/titles)
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+          MODEL_NAME: ${{ secrets.MODEL_NAME }}
+          DISABLE_OPENAI: ${{ secrets.DISABLE_OPENAI }}
+          RSS_FEEDS: ${{ vars.RSS_FEEDS }}
         run: |
           git add -f data/published.json data/recent_titles.json || true
           if ! git diff --cached --quiet -- data; then
