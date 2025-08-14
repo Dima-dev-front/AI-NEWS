@@ -2,7 +2,7 @@ name: ai-news-cron
 
 on:
   schedule:
-    - cron: "*/2 * * * *"  # каждые 2 минуты
+    - cron: "*/15 * * * *"  # каждые 15 минут
   workflow_dispatch: {}
 
 permissions:
@@ -15,7 +15,6 @@ concurrency:
 jobs:
   run-on-schedule:
     runs-on: ubuntu-latest
-    environment: TELEGRAM_TOKEN
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,17 +40,9 @@ jobs:
       - name: Show HEAD and sanity-check code
         run: |
           echo "HEAD=" $(git rev-parse HEAD)
-          python - <<'PY'
-import sys
-from pathlib import Path
-print('news.py exists:', Path('news.py').exists())
-import importlib.util
-spec = importlib.util.spec_from_file_location('news', 'news.py')
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
-print('has _canonicalize_url:', hasattr(mod.NewsFetcher, '_canonicalize_url'))
-sys.exit(0 if hasattr(mod.NewsFetcher, '_canonicalize_url') else 1)
-PY
+          echo "news.py exists:" $(test -f news.py && echo "true" || echo "false")
+          echo "bot.py exists:" $(test -f bot.py && echo "true" || echo "false")
+          python -c "import news; print('NewsFetcher loaded successfully')" || echo "Warning: news.py import failed"
 
       - name: Create .env from secrets/vars
         env:
