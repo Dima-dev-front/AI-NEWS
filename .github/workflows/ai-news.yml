@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: ai-news-cron
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   run-on-schedule:
@@ -70,6 +70,14 @@ jobs:
           while [ "$i" -le "${ITERATIONS}" ]; do
             echo "[AI-NEWS] Iteration $i/${ITERATIONS}"
             python -u bot.py || true
+            # commit state after each iteration to persist dedupe across jobs
+            if ! git diff --quiet -- data; then
+              git config user.name "github-actions"
+              git config user.email "github-actions@github.com"
+              git add data/published.json data/recent_titles.json || true
+              git commit -m "chore(data): update published/titles [skip ci]"
+              git push || true
+            fi
             if [ "$i" -lt "${ITERATIONS}" ]; then
               echo "Sleeping ${SLEEP_SEC}s..."
               sleep "${SLEEP_SEC}"
