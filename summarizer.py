@@ -50,6 +50,7 @@ class Summarizer:
             f"Заголовок оригіналу: {title}\nДжерело: {url}\n\nВивід (ЛИШЕ JSON):"
         )
         try:
+            logger.info(f"Summarize using model: {self.model_name}")
             completion = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
@@ -95,6 +96,7 @@ class Summarizer:
             f"Список:\n{list_text}\n\nВідповідь (ЛИШЕ JSON):"
         )
         try:
+            logger.info(f"Select_best using model: {self.model_name}")
             completion = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
