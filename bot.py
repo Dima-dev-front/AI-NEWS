@@ -146,7 +146,7 @@ def main() -> None:
 	country = os.getenv("COUNTRY", "RU")
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
 	run_once = os.getenv("RUN_ONCE", "").lower() in ("1", "true", "yes", "on")
-	require_media = os.getenv("REQUIRE_MEDIA", "1").lower() in ("1", "true", "yes", "on")
+	require_media = os.getenv("REQUIRE_MEDIA", "0").lower() in ("1", "true", "yes", "on")
 	placeholder_image_url = os.getenv("PLACEHOLDER_IMAGE_URL", "https://placehold.co/1200x675/png?text=AI+NEWS")
 	# Disable repost fallback by default to avoid duplicates
 	allow_repost_fallback = os.getenv("ALLOW_REPOST_FALLBACK", "0").lower() in ("1","true","yes","on")

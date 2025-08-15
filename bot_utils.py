@@ -94,8 +94,11 @@ def _normalize_media_url(url: str) -> str:
 		return url
 
 
-def _is_high_quality_image(url: str, min_bytes: int = 15000, timeout: int = 5) -> bool:
+def _is_high_quality_image(url: str, min_bytes: int = 5000, timeout: int = 3) -> bool:
 	"""Quick HEAD check to ensure the image is not a tiny thumbnail."""
+	# Skip quality check for screenshot services and fallback images
+	if any(host in url for host in ("placehold.co", "s.wordpress.com", "image.thum.io")):
+		return True
 	try:
 		r = requests.head(url, timeout=timeout, allow_redirects=True)
 		ct = (r.headers.get("Content-Type") or "").lower()
@@ -104,10 +107,11 @@ def _is_high_quality_image(url: str, min_bytes: int = 15000, timeout: int = 5) -
 		length = r.headers.get("Content-Length")
 		if length and length.isdigit():
 			return int(length) >= min_bytes
-		# No length header — assume OK
+		# No length header — assume OK (many CDNs don't provide Content-Length)
 		return True
 	except Exception:
-		return False
+		# Network error — assume image is OK to avoid false rejections
+		return True
 
 
 def _filter_and_dedupe_media(media: Optional[List[Dict]]) -> List[Dict]:
