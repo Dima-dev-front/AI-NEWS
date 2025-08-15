@@ -83,40 +83,72 @@ def format_summary_with_structure(summary: str, html: bool = True) -> str:
 
 def get_context_icon(text: str) -> str:
 	"""
-	Select appropriate icon based on text content
+	Select appropriate icon based on text content with variety and randomization
 	"""
 	text_lower = text.lower()
 	
-	# Technology/AI related
-	if any(word in text_lower for word in ['штучний інтелект', 'ай', 'ші', 'технологі', 'алгоритм', 'робот', 'автоматизаці']):
-		return '🤖'
+	# Technology/AI related - multiple options
+	if any(word in text_lower for word in ['штучний інтелект', 'ай', 'ші', 'технологі', 'алгоритм', 'робот', 'автоматизаці', 'нейрон', 'машинн', 'код', 'програм', 'цифров', 'данн', 'обчислен']):
+		tech_icons = ['🤖', '⚡', '🔬', '💻', '🧠', '⚙️']
+		return _select_varied_icon(tech_icons, text_lower)
 	
-	# Money/business related  
-	if any(word in text_lower for word in ['гроші', 'долар', 'інвестиці', 'прибуток', 'бізнес', 'компані', 'стартап']):
-		return '💰'
+	# Money/business related - multiple options
+	if any(word in text_lower for word in ['гроші', 'долар', 'інвестиці', 'прибуток', 'бізнес', 'компані', 'стартап', 'фінанс', 'капітал', 'ринок']):
+		money_icons = ['💰', '💸', '📈', '🏦', '💎', '🤑']
+		return _select_varied_icon(money_icons, text_lower)
 	
-	# Surprise/shock
-	if any(word in text_lower for word in ['несподівано', 'шокуюч', 'вражаюч', 'дивно', 'неймовірно']):
-		return '😲'
+	# Surprise/shock/unexpected - multiple options
+	if any(word in text_lower for word in ['несподівано', 'шокуюч', 'вражаюч', 'дивно', 'неймовірно', 'вау', 'ого', 'ничего себе']):
+		surprise_icons = ['😲', '🤯', '😱', '🙀', '😮', '🤨']
+		return _select_varied_icon(surprise_icons, text_lower)
 	
-	# Positive/success
-	if any(word in text_lower for word in ['чудово', 'відмінно', 'успішно', 'перемог', 'досягнення']):
-		return '🎉'
+	# Positive/success/celebration - multiple options
+	if any(word in text_lower for word in ['чудово', 'відмінно', 'успішно', 'перемог', 'досягнення', 'круто', 'супер', 'класно']):
+		positive_icons = ['🎉', '🚀', '✨', '🔥', '👏', '🥳', '🌟']
+		return _select_varied_icon(positive_icons, text_lower)
 	
-	# Negative/concern
-	if any(word in text_lower for word in ['проблем', 'загроз', 'небезпек', 'кризи', 'жахлив']):
-		return '⚠️'
+	# Negative/concern/warning - multiple options
+	if any(word in text_lower for word in ['проблем', 'загроз', 'небезпек', 'кризи', 'жахлив', 'погано', 'провал']):
+		negative_icons = ['⚠️', '🚨', '😬', '😰', '🤦', '💀']
+		return _select_varied_icon(negative_icons, text_lower)
 	
-	# Thinking/analysis
-	if any(word in text_lower for word in ['думк', 'аналіз', 'дослідженн', 'вивчен', 'з\'ясуван']):
-		return '🤔'
+	# Thinking/analysis/research - multiple options
+	if any(word in text_lower for word in ['думк', 'аналіз', 'дослідженн', 'вивчен', 'з\'ясуван', 'розбир', 'вивчен']):
+		thinking_icons = ['🤔', '🧐', '💡', '📊', '🔍', '📝']
+		return _select_varied_icon(thinking_icons, text_lower)
 	
-	# Fun/entertainment
-	if any(word in text_lower for word in ['смішно', 'весело', 'кумедно', 'жарт', 'гумор']):
-		return '😄'
+	# Fun/entertainment/humor - multiple options
+	if any(word in text_lower for word in ['смішно', 'весело', 'кумедно', 'жарт', 'гумор', 'прикол', 'ржач', 'кумедн', 'забавн']):
+		fun_icons = ['😄', '😂', '🤣', '😆', '🙃', '😜', '🤪']
+		return _select_varied_icon(fun_icons, text_lower)
 	
-	# Default thinking icon for comments
-	return '💭'
+	# Sarcasm/irony patterns - expanded
+	if any(pattern in text_lower for pattern in ['звісно', 'ага', 'ну да', 'конечно', 'ясно', 'логично', 'звичайно', 'як завжди', 'типово', 'класично']):
+		sarcasm_icons = ['🙄', '😏', '🤨', '😑', '🤷', '🙃']
+		return _select_varied_icon(sarcasm_icons, text_lower)
+	
+	# Question/doubt patterns
+	if any(pattern in text_lower for pattern in ['невідомо', 'хто знає', 'цікаво', 'питання', 'загадка', 'незрозуміло']):
+		question_icons = ['🤷', '❓', '🤔', '🧐', '😕', '🤨']
+		return _select_varied_icon(question_icons, text_lower)
+	
+	# Time/speed related
+	if any(word in text_lower for word in ['швидко', 'повільно', 'час', 'терміново', 'негайно']):
+		time_icons = ['⏰', '⚡', '🐌', '⏳', '🏃', '🕐']
+		return _select_varied_icon(time_icons, text_lower)
+	
+	# Default varied icons for general comments
+	default_icons = ['💭', '🎯', '📌', '💡', '🤷', '😌', '🎪', '🎲']
+	return _select_varied_icon(default_icons, text_lower)
+
+
+def _select_varied_icon(icons: list, text: str) -> str:
+	"""
+	Select icon with pseudo-randomization based on text content for variety
+	"""
+	# Use text hash for consistent but varied selection
+	text_hash = hash(text) % len(icons)
+	return icons[text_hash]
 
 
 def format_message_html(title: str, summary: str, source_url: str) -> str:
