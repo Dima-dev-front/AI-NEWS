@@ -73,9 +73,10 @@ class Summarizer:
             return ""
 
     def select_best(self, items: list[dict]) -> list[int]:
-        """Return list of preferred indices (0-based) for items, best first.
+        """Return list with index (0-based) of the single best news item.
 
         Each item is expected to have keys: 'title' and optional 'link'.
+        Returns list with 1 element - index of the best news item.
         """
         if self.disabled or not self.client or not items:
             return []
@@ -94,11 +95,11 @@ class Summarizer:
             lines.append(line)
         list_text = "\n".join(lines)
         prompt = (
-            "Ти — редактор добірки новин. З наведеного списку обери 3 найцікавіші, \n"
-            "враховуючи глобальну важливість, новизну, потенційний вплив на ІТ/ШІ, \n"
-            "та різноманітність тем. Виведи ЛИШЕ валідний JSON без пояснень у форматі \n"
-            "{\"best\": [i1, i2, i3]} де i — це індекси зі списку нижче (0‑based). \n"
-            "Якщо впевнений лише у 1–2 пунктах — поверни їх. Без зайвого тексту.\n\n"
+            "Ти — головний редактор новин. З наведеного списку обери 1 НАЙКРАЩУ новину, \n"
+            "враховуючи глобальну важливість, актуальність, потенційний вплив на ІТ/ШІ, \n"
+            "та цікавість для широкої аудitorії. Виведи ЛИШЕ валідний JSON без пояснень у форматі \n"
+            "{\"best\": [i]} де i — це індекс найкращої новини зі списку нижче (0‑based). \n"
+            "Обирай найякісніший та найцікавіший матеріал. Без зайвого тексту.\n\n"
             f"Список:\n{list_text}\n\nВідповідь (ЛИШЕ JSON):"
         )
         try:
@@ -106,7 +107,7 @@ class Summarizer:
             completion = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "Ти обираєш найцікавіші новини. Відповідаєш ТІЛЬКИ валідним JSON."},
+                    {"role": "system", "content": "Ти головний редактор новин. Обираєш 1 найкращу новину з списку. Відповідаєш ТІЛЬКИ валідним JSON."},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.2,
