@@ -185,6 +185,8 @@ def main() -> None:
 	mode = "RSS_FEEDS"
 	# Debug flags
 	debug_dump_rss = os.getenv("DEBUG_DUMP_RSS", "0").lower() in ("1","true","yes","on")
+	debug_log_skips = os.getenv("DEBUG_LOG_SKIPS", "1").lower() in ("1","true","yes","on")
+	bypass_recent_dedupe = os.getenv("BYPASS_RECENT_DEDUPE", "0").lower() in ("1","true","yes","on")
 	debug_dir = DATA_DIR / "debug"
 	logger.info(
 		"Starting bot. Mode=%s, Feeds=%d, Interval=%s min, Delay=%s sec, Published=%d",
@@ -223,6 +225,13 @@ def main() -> None:
 			ordered_indices = list(seen_idx) + [i for i in range(len(items)) if i not in seen_idx]
 
 			new_count = 0
+			skip_stats = {
+				"invalid": 0,
+				"published": 0,
+				"recent_title": 0,
+				"ai_title": 0,
+				"no_media": 0,
+			}
 			for idx in ordered_indices:
 				item = items[idx]
 				title = item.get("title") or ""
@@ -231,14 +240,17 @@ def main() -> None:
 				media = item.get("media") or None
 				feed_or_meta_desc = item.get("description") or ""
 				if not title or not link:
+					skip_stats["invalid"] += 1
 					continue
 
 				if link in published_links:
+					skip_stats["published"] += 1
 					continue
 
 				# Early title-based dedupe on feed title
 				orig_title_key = title_key(title)
-				if orig_title_key and orig_title_key in recent_title_keys_set:
+				if (not bypass_recent_dedupe) and orig_title_key and orig_title_key in recent_title_keys_set:
+					skip_stats["recent_title"] += 1
 					continue
 
 				ai_output = summarizer.summarize(title=title, url=link)
@@ -258,7 +270,8 @@ def main() -> None:
 
 				# Dedupe with AI title if it differs
 				ai_title_key = title_key(final_title)
-				if ai_title_key and ai_title_key in recent_title_keys_set:
+				if (not bypass_recent_dedupe) and ai_title_key and ai_title_key in recent_title_keys_set:
+					skip_stats["ai_title"] += 1
 					continue
 
 				# If no media available, try fallback image or page screenshot
@@ -272,6 +285,7 @@ def main() -> None:
 					if not image_url:
 						image_url = placeholder_image_url
 					if require_media and not (image_url or (media and len(media) > 0)):
+						skip_stats["no_media"] += 1
 						continue
 
 				# Append CTA if present
@@ -302,6 +316,11 @@ def main() -> None:
 				time.sleep(post_delay_sec)
 
 			if new_count == 0:
+				if debug_log_skips:
+					logger.info(
+						"Skip summary: invalid=%s, published=%s, recent_title=%s, ai_title=%s, no_media=%s",
+						skip_stats["invalid"], skip_stats["published"], skip_stats["recent_title"], skip_stats["ai_title"], skip_stats["no_media"],
+					)
 				logger.info("No new items to post")
 		except Exception as loop_exc:
 			logger.error("Loop error: %s", loop_exc)
