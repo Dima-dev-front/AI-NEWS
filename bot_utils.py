@@ -14,50 +14,68 @@ def format_summary_with_structure(summary: str, html: bool = True) -> str:
 	if not summary:
 		return ""
 	
-	lines = summary.split('\n')
-	formatted_lines = []
+	# Split by sentences to better detect the final comment/joke
+	sentences = []
+	temp_sentence = ""
 	
-	for line in lines:
-		line = line.strip()
-		if not line:
-			formatted_lines.append("")
-			continue
-			
-		# Detect if this is a comment/joke line (typically the last sentence or contains humor indicators)
+	for char in summary:
+		temp_sentence += char
+		if char in '.!?':
+			sentences.append(temp_sentence.strip())
+			temp_sentence = ""
+	
+	if temp_sentence.strip():
+		sentences.append(temp_sentence.strip())
+	
+	if not sentences:
+		return summary
+	
+	# The last sentence is likely a comment/joke if it contains humor indicators
+	formatted_sentences = []
+	
+	for i, sentence in enumerate(sentences):
+		is_last = (i == len(sentences) - 1)
+		
+		# Detect if this is a comment/joke line
 		is_comment = (
-			# Check for typical joke/comment patterns
-			any(indicator in line.lower() for indicator in [
-				'хоча', 'втім', 'до речі', 'цікаво', 'схоже', 'мабуть', 'очевидно', 
-				'зрештою', 'принаймні', 'однак', 'проте', 'але ж', 'звісно',
-				'😄', '😅', '🤔', '🙃', '😏', '🤷', '💭', '🎯'
-			]) or
-			# Check if it's likely a witty remark (short sentence with certain patterns)
-			(len(line.split()) <= 15 and any(word in line.lower() for word in [
-				'не варто', 'краще', 'гірше', 'дивно', 'чудово', 'жахливо', 'смішно'
-			]))
+			is_last and (
+				# Check for typical joke/comment patterns
+				any(indicator in sentence.lower() for indicator in [
+					'хоча', 'втім', 'до речі', 'цікаво', 'схоже', 'мабуть', 'очевидно', 
+					'зрештою', 'принаймні', 'однак', 'проте', 'але ж', 'звісно',
+					'не варто', 'краще', 'гірше', 'дивно', 'чудово', 'жахливо', 'смішно',
+					'😄', '😅', '🤔', '🙃', '😏', '🤷', '💭', '🎯'
+				]) or
+				# Short witty sentence patterns
+				len(sentence.split()) <= 12
+			)
 		)
 		
-		if is_comment:
-			# Add appropriate icon based on content context
-			icon = get_context_icon(line)
+		if is_comment and is_last:
+			# Add appropriate icon and formatting for the final comment
+			icon = get_context_icon(sentence)
 			if html:
-				formatted_line = f"    {icon} <i>{escape_html(line)}</i>"
+				formatted_sentence = f"\n\n    {icon} <i>{escape_html(sentence)}</i>"
 			else:
-				formatted_line = f"    {icon} {line}"
+				formatted_sentence = f"\n\n    {icon} {sentence}"
 		else:
-			# Regular content line
+			# Regular sentence
 			if html:
-				formatted_line = escape_html(line)
+				formatted_sentence = escape_html(sentence)
 			else:
-				formatted_line = line
+				formatted_sentence = sentence
 		
-		formatted_lines.append(formatted_line)
+		formatted_sentences.append(formatted_sentence)
 	
-	# Join lines and add proper paragraph separation
-	result = '\n'.join(formatted_lines)
-	
-	# Add paragraph breaks for better readability
-	result = result.replace('\n\n\n', '\n\n')  # Normalize multiple breaks
+	# Join sentences, but handle the special formatting for comments
+	result = ""
+	for i, sentence in enumerate(formatted_sentences):
+		if i == 0:
+			result += sentence
+		elif sentence.startswith('\n\n    '):  # This is a comment
+			result += sentence
+		else:
+			result += " " + sentence
 	
 	return result
 
@@ -136,74 +154,68 @@ def escape_html(text: str) -> str:
 def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url: Optional[str] = None, message_plain: Optional[str] = None, all_media: Optional[list] = None) -> None:
 	base_url = f"https://api.telegram.org/bot{bot_token}"
 	
-	# Filter media to only images and videos, limit to avoid telegram limits
-	filtered_media = []
+	# Select best media: prioritize videos over images
+	best_media_url = None
 	if all_media:
-		for media_url in all_media[:10]:  # Telegram allows up to 10 items in media group
+		# First, look for videos (higher priority)
+		for media_url in all_media:
 			if media_url and media_url.startswith('http'):
-				# Simple check for image/video extensions
 				lower_url = media_url.lower()
-				if any(ext in lower_url for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.avi']):
-					filtered_media.append(media_url)
+				if any(ext in lower_url for ext in ['.mp4', '.mov', '.avi', '.webm', '.mkv']):
+					best_media_url = media_url
+					break
+		
+		# If no video found, look for images
+		if not best_media_url:
+			for media_url in all_media:
+				if media_url and media_url.startswith('http'):
+					lower_url = media_url.lower()
+					if any(ext in lower_url for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+						best_media_url = media_url
+						break
 	
-	# Try to send media group if we have multiple media items
-	if len(filtered_media) > 1:
-		try:
-			media_group = []
-			caption = message_html if len(message_html) <= 1024 else message_html[:1021] + "..."
-			
-			for i, media_url in enumerate(filtered_media[:10]):  # Telegram limit
-				media_item = {
-					"type": "photo",  # Default to photo, Telegram will handle videos
-					"media": media_url
-				}
-				# Add caption only to the first item
-				if i == 0:
-					media_item["caption"] = caption
-					media_item["parse_mode"] = "HTML"
-				media_group.append(media_item)
-			
-			import json as json_lib
-			media_payload = {
-				"chat_id": chat_id,
-				"media": json_lib.dumps(media_group)
-			}
-			
-			resp = requests.post(f"{base_url}/sendMediaGroup", data=media_payload, timeout=15)
-			if resp.status_code == 200:
-				logger.info("Sent media group with %d items to Telegram.", len(filtered_media))
-				return
-			else:
-				logger.warning("Media group failed, falling back to single photo: %s", resp.text)
-		except Exception as exc:
-			logger.warning("Media group send failed, falling back: %s", exc)
+	# Use best_media_url if found, otherwise fallback to image_url
+	final_media_url = best_media_url or image_url
 
-	# Prefer sending photo with HTML caption when image is available
-	if image_url:
+	# Send media with caption if available
+	if final_media_url:
 		caption = message_html
 		if len(caption) > 1024:
 			caption = caption[:1021] + "..."
-		photo_payload = {
+		
+		# Determine if it's a video or photo
+		lower_url = final_media_url.lower()
+		is_video = any(ext in lower_url for ext in ['.mp4', '.mov', '.avi', '.webm', '.mkv'])
+		
+		media_payload = {
 			"chat_id": chat_id,
-			"photo": image_url,
 			"caption": caption,
 			"parse_mode": "HTML",
 		}
+		
+		if is_video:
+			media_payload["video"] = final_media_url
+			endpoint = "sendVideo"
+		else:
+			media_payload["photo"] = final_media_url
+			endpoint = "sendPhoto"
+		
 		try:
-			resp = requests.post(f"{base_url}/sendPhoto", data=photo_payload, timeout=15)
+			resp = requests.post(f"{base_url}/{endpoint}", data=media_payload, timeout=15)
 			if resp.status_code == 400 and message_plain:
 				# Fallback to plain caption
-				photo_payload.pop("parse_mode", None)
+				media_payload.pop("parse_mode", None)
 				plain_cap = message_plain
 				if len(plain_cap) > 1024:
 					plain_cap = plain_cap[:1021] + "..."
-				photo_payload["caption"] = plain_cap
-				resp = requests.post(f"{base_url}/sendPhoto", data=photo_payload, timeout=15)
+				media_payload["caption"] = plain_cap
+				resp = requests.post(f"{base_url}/{endpoint}", data=media_payload, timeout=15)
 			resp.raise_for_status()
-			logger.info("Sent photo with caption to Telegram.")
+			media_type = "video" if is_video else "photo"
+			logger.info("Sent %s with caption to Telegram.", media_type)
 			return
 		except Exception as exc:
-			logger.error("Telegram sendPhoto failed: %s", exc)
+			logger.error("Telegram send%s failed: %s", endpoint.replace("send", ""), exc)
 			# Fall through to text-only
 
 	# Text-only message
