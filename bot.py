@@ -74,7 +74,23 @@ def collapse_to_two_sentences(text: str, max_chars: int = 400) -> str:
 def parse_feed_urls(env_value: str) -> list:
 	if not env_value:
 		return []
-	return [u.strip() for u in env_value.split(",") if u.strip()]
+	# Поддержка форматов: запятые, пробелы/переводы строк и префиксы '@'
+	import re as _re
+	normalized = env_value.replace("@", " ")
+	parts = _re.split(r"[\s,]+", normalized)
+	urls = []
+	for p in parts:
+		p = (p or "").strip().lstrip("@").strip('\"\'<>')
+		if p and p.startswith("http"):
+			urls.append(p)
+	# Удаление дубликатов, сохранение порядка
+	seen = set()
+	unique = []
+	for u in urls:
+		if u not in seen:
+			seen.add(u)
+			unique.append(u)
+	return unique
 
 
 def categorize_rss_feeds(feed_urls: List[str]) -> Dict[str, List[str]]:
