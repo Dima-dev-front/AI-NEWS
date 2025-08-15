@@ -136,11 +136,10 @@ def _filter_and_dedupe_media(media: Optional[List[Dict]]) -> List[Dict]:
 def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url: Optional[str] = None, message_plain: Optional[str] = None, media: Optional[List[Dict]] = None, image_bytes: Optional[bytes] = None) -> None:
 	base_url = f"https://api.telegram.org/bot{bot_token}"
 
-	# Prepare caption (title only) and body (summary)
-	cap_title = message_html.split("\n\n", 1)[0]
-	body_only = ""
-	if "\n\n" in message_html:
-		body_only = message_html.split("\n\n", 1)[1]
+	# Prepare single caption (title + summary) within Telegram limit
+	caption_full = message_html
+	if len(caption_full) > 1024:
+		caption_full = caption_full[:1024]
 
 	# Filter and dedupe media to avoid duplicates and low-quality images
 	if media:
@@ -149,7 +148,7 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 	# If media group provided, try to send as album (up to 10 items)
 	if media:
 		group = []
-		for m in media[:10]:
+		for m in media[:4]:
 			try:
 				t = (m.get("type") or "").strip().lower()
 				u = (m.get("url") or "").strip()
@@ -163,18 +162,12 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 				continue
 		if group and len(group) >= 2:
 			try:
-				cap = cap_title
-				if len(cap) > 1024:
-					cap = cap[:1024]
-				group[0]["caption"] = cap
+				group[0]["caption"] = caption_full
 				group[0]["parse_mode"] = "HTML"
 				payload = {"chat_id": chat_id, "media": json.dumps(group)}
 				resp = requests.post(f"{base_url}/sendMediaGroup", data=payload, timeout=20)
 				resp.raise_for_status()
 				logger.info("Sent media group to Telegram.")
-				# Send full body as separate message for readability
-				if body_only.strip():
-					requests.post(f"{base_url}/sendMessage", data={"chat_id": chat_id, "text": body_only, "parse_mode": "HTML", "disable_web_page_preview": False}, timeout=15)
 				return
 			except Exception as exc:
 				logger.error("Telegram sendMediaGroup failed: %s", exc)
@@ -182,29 +175,21 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 		elif group and len(group) == 1 and not image_url:
 			one = group[0]
 			try:
-				cap = cap_title
-				if len(cap) > 1024:
-					cap = cap[:1024]
 				if one.get("type") == "photo":
-					payload = {"chat_id": chat_id, "photo": one.get("media"), "caption": cap, "parse_mode": "HTML"}
+					payload = {"chat_id": chat_id, "photo": one.get("media"), "caption": caption_full, "parse_mode": "HTML"}
 					resp = requests.post(f"{base_url}/sendPhoto", data=payload, timeout=15)
 					resp.raise_for_status()
 				elif one.get("type") == "video":
-					payload = {"chat_id": chat_id, "video": one.get("media"), "caption": cap, "parse_mode": "HTML"}
+					payload = {"chat_id": chat_id, "video": one.get("media"), "caption": caption_full, "parse_mode": "HTML"}
 					resp = requests.post(f"{base_url}/sendVideo", data=payload, timeout=20)
 					resp.raise_for_status()
-				# Send body afterwards
-				if body_only.strip():
-					requests.post(f"{base_url}/sendMessage", data={"chat_id": chat_id, "text": body_only, "parse_mode": "HTML", "disable_web_page_preview": False}, timeout=15)
 				return
 			except Exception as exc:
 				logger.error("Telegram send single media failed: %s", exc)
 
 	# Prefer sending photo with HTML caption when image is available
 	if image_url:
-		caption = cap_title
-		if len(caption) > 1024:
-			caption = caption[:1024]
+		caption = caption_full
 		photo_payload = {
 			"chat_id": chat_id,
 			"photo": image_url,
@@ -216,16 +201,11 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 			if resp.status_code == 400 and message_plain:
 				# Fallback to plain caption
 				photo_payload.pop("parse_mode", None)
-				plain_cap = message_plain.split("\n\n", 1)[0]
-				if len(plain_cap) > 1024:
-					plain_cap = plain_cap[:1024]
+				plain_cap = (message_plain or "")[:1024]
 				photo_payload["caption"] = plain_cap
 				resp = requests.post(f"{base_url}/sendPhoto", data=photo_payload, timeout=15)
 			resp.raise_for_status()
 			logger.info("Sent photo with caption to Telegram.")
-			# Send body afterwards
-			if body_only.strip():
-				requests.post(f"{base_url}/sendMessage", data={"chat_id": chat_id, "text": body_only, "parse_mode": "HTML", "disable_web_page_preview": False}, timeout=15)
 			return
 		except Exception as exc:
 			logger.error("Telegram sendPhoto failed: %s", exc)
@@ -234,17 +214,12 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 	# If we have raw image bytes (AI generated), upload via multipart
 	if image_bytes:
 		try:
-			caption = cap_title
-			if len(caption) > 1024:
-				caption = caption[:1024]
+			caption = caption_full
 			files = {"photo": ("image.png", image_bytes, "image/png")}
 			data = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
 			resp = requests.post(f"{base_url}/sendPhoto", data=data, files=files, timeout=20)
 			resp.raise_for_status()
 			logger.info("Sent generated image with caption to Telegram.")
-			# Send body afterwards
-			if body_only.strip():
-				requests.post(f"{base_url}/sendMessage", data={"chat_id": chat_id, "text": body_only, "parse_mode": "HTML", "disable_web_page_preview": False}, timeout=15)
 			return
 		except Exception as exc:
 			logger.error("Telegram sendPhoto(bytes) failed: %s", exc)
