@@ -1,53 +1,109 @@
 import logging
-import json
-from typing import Optional, List, Dict
-from urllib.parse import quote, urlparse, parse_qs, urlencode, urlunparse
+from typing import Optional
+from urllib.parse import quote
 
 import requests
-import os
 
 logger = logging.getLogger(__name__)
 
 
-def _normalize_paragraphs(text: str) -> str:
-	# Ensure paragraphs, remove ellipses, indent remark
-	if not text:
+def format_summary_with_structure(summary: str, html: bool = True) -> str:
+	"""
+	Format summary with proper structure, indentation for comments/jokes with icons
+	"""
+	if not summary:
 		return ""
-	t = text.replace("\r\n", "\n").replace("\r", "\n").strip()
-	# replace three dots variants with a period
-	t = t.replace("…", ".").replace("...", ".")
-	# collapse multiple blank lines
-	lines = [ln.strip() for ln in t.split("\n")]
-	paragraphs: List[str] = []
-	buf: List[str] = []
-	for ln in lines:
-		if not ln:
-			if buf:
-				paragraphs.append(" ".join(buf).strip())
-				buf = []
+	
+	lines = summary.split('\n')
+	formatted_lines = []
+	
+	for line in lines:
+		line = line.strip()
+		if not line:
+			formatted_lines.append("")
 			continue
-		buf.append(ln)
-	if buf:
-		paragraphs.append(" ".join(buf).strip())
-	# indent last paragraph as a remark if it looks like one; ensure emoji prefix
-	formatted: List[str] = []
-	for i, p in enumerate(paragraphs):
-		is_last = i == len(paragraphs) - 1
-		starts_with_emoji = any(p.startswith(e) for e in ["🙂","😉","🤖","📝","📰","💡","📌","⚠️","✅","❗","ℹ️","📈","📉","🚀"]) or (p[:1].encode('utf-8') != p[:1])
-		if is_last:
-			remark = p
-			if not starts_with_emoji:
-				remark = "💡 " + remark
-			formatted.append("\t".replace("\t", "  ") + remark)
+			
+		# Detect if this is a comment/joke line (typically the last sentence or contains humor indicators)
+		is_comment = (
+			# Check for typical joke/comment patterns
+			any(indicator in line.lower() for indicator in [
+				'хоча', 'втім', 'до речі', 'цікаво', 'схоже', 'мабуть', 'очевидно', 
+				'зрештою', 'принаймні', 'однак', 'проте', 'але ж', 'звісно',
+				'😄', '😅', '🤔', '🙃', '😏', '🤷', '💭', '🎯'
+			]) or
+			# Check if it's likely a witty remark (short sentence with certain patterns)
+			(len(line.split()) <= 15 and any(word in line.lower() for word in [
+				'не варто', 'краще', 'гірше', 'дивно', 'чудово', 'жахливо', 'смішно'
+			]))
+		)
+		
+		if is_comment:
+			# Add appropriate icon based on content context
+			icon = get_context_icon(line)
+			if html:
+				formatted_line = f"    {icon} <i>{escape_html(line)}</i>"
+			else:
+				formatted_line = f"    {icon} {line}"
 		else:
-			formatted.append(p)
-	return "\n\n".join(formatted)
+			# Regular content line
+			if html:
+				formatted_line = escape_html(line)
+			else:
+				formatted_line = line
+		
+		formatted_lines.append(formatted_line)
+	
+	# Join lines and add proper paragraph separation
+	result = '\n'.join(formatted_lines)
+	
+	# Add paragraph breaks for better readability
+	result = result.replace('\n\n\n', '\n\n')  # Normalize multiple breaks
+	
+	return result
+
+
+def get_context_icon(text: str) -> str:
+	"""
+	Select appropriate icon based on text content
+	"""
+	text_lower = text.lower()
+	
+	# Technology/AI related
+	if any(word in text_lower for word in ['штучний інтелект', 'ай', 'ші', 'технологі', 'алгоритм', 'робот', 'автоматизаці']):
+		return '🤖'
+	
+	# Money/business related  
+	if any(word in text_lower for word in ['гроші', 'долар', 'інвестиці', 'прибуток', 'бізнес', 'компані', 'стартап']):
+		return '💰'
+	
+	# Surprise/shock
+	if any(word in text_lower for word in ['несподівано', 'шокуюч', 'вражаюч', 'дивно', 'неймовірно']):
+		return '😲'
+	
+	# Positive/success
+	if any(word in text_lower for word in ['чудово', 'відмінно', 'успішно', 'перемог', 'досягнення']):
+		return '🎉'
+	
+	# Negative/concern
+	if any(word in text_lower for word in ['проблем', 'загроз', 'небезпек', 'кризи', 'жахлив']):
+		return '⚠️'
+	
+	# Thinking/analysis
+	if any(word in text_lower for word in ['думк', 'аналіз', 'дослідженн', 'вивчен', 'з\'ясуван']):
+		return '🤔'
+	
+	# Fun/entertainment
+	if any(word in text_lower for word in ['смішно', 'весело', 'кумедно', 'жарт', 'гумор']):
+		return '😄'
+	
+	# Default thinking icon for comments
+	return '💭'
 
 
 def format_message_html(title: str, summary: str, source_url: str) -> str:
 	# Source is intentionally omitted per requirements
-	body = _normalize_paragraphs(summary)
-	return f"<b>{escape_html(title)}</b>\n\n{escape_html(body)}"
+	formatted_summary = format_summary_with_structure(summary)
+	return f"<b>{escape_html(title)}</b>\n\n{formatted_summary}"
 
 
 def format_message_plain(title: str, summary: str, source_url: str) -> str:
@@ -55,7 +111,8 @@ def format_message_plain(title: str, summary: str, source_url: str) -> str:
 	parts = [title.strip()]
 	if summary.strip():
 		parts.append("")
-		parts.append(_normalize_paragraphs(summary.strip()))
+		formatted_summary = format_summary_with_structure(summary, html=False)
+		parts.append(formatted_summary.strip())
 	text = "\n".join(parts).strip()
 	return text[:4000]
 
@@ -76,124 +133,56 @@ def escape_html(text: str) -> str:
 	)
 
 
-def _normalize_media_url(url: str) -> str:
-	"""Normalize media URL to dedupe similar resources (strip common size/tracking params)."""
-	try:
-		o = urlparse(url)
-		qs = parse_qs(o.query, keep_blank_values=True)
-		# Remove common size/tracking params
-		blocked = {"utm_source","utm_medium","utm_campaign","utm_term","utm_content","utm_id","gclid","fbclid","igshid","ref","ref_src","ref_url","ncid","spm","w","width","h","height","sz","s","name"}
-		qs = {k:v for k,v in qs.items() if k not in blocked}
-		new_query = urlencode({k:(v[0] if isinstance(v, list) and v else v) for k,v in qs.items()}, doseq=False)
-		o = o._replace(query=new_query)
-		# Drop trailing slash
-		if o.path.endswith("/") and len(o.path) > 1:
-			o = o._replace(path=o.path.rstrip("/"))
-		return urlunparse(o)
-	except Exception:
-		return url
-
-
-def _is_high_quality_image(url: str, min_bytes: int = 5000, timeout: int = 3) -> bool:
-	"""Quick HEAD check to ensure the image is not a tiny thumbnail."""
-	# Skip quality check for screenshot services and fallback images
-	if any(host in url for host in ("placehold.co", "s.wordpress.com", "image.thum.io")):
-		return True
-	try:
-		r = requests.head(url, timeout=timeout, allow_redirects=True)
-		ct = (r.headers.get("Content-Type") or "").lower()
-		if "image" not in ct:
-			return False
-		length = r.headers.get("Content-Length")
-		if length and length.isdigit():
-			return int(length) >= min_bytes
-		# No length header — assume OK (many CDNs don't provide Content-Length)
-		return True
-	except Exception:
-		# Network error — assume image is OK to avoid false rejections
-		return True
-
-
-def _filter_and_dedupe_media(media: Optional[List[Dict]]) -> List[Dict]:
-	if not media:
-		return []
-	seen: set[str] = set()
-	result: List[Dict] = []
-	for m in media:
-		try:
-			t = (m.get("type") or "").strip().lower()
-			u = (m.get("url") or "").strip()
-			if not u or t not in ("photo","video"):
-				continue
-			norm = _normalize_media_url(u)
-			if norm in seen:
-				continue
-			if t == "photo" and not _is_high_quality_image(u):
-				continue
-			seen.add(norm)
-			result.append({"type": t, "url": u})
-		except Exception:
-			continue
-	return result
-
-
-def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url: Optional[str] = None, message_plain: Optional[str] = None, media: Optional[List[Dict]] = None, image_bytes: Optional[bytes] = None) -> None:
+def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url: Optional[str] = None, message_plain: Optional[str] = None, all_media: Optional[list] = None) -> None:
 	base_url = f"https://api.telegram.org/bot{bot_token}"
-
-	# Prepare single caption (title + summary) within Telegram limit
-	caption_full = message_html
-	if len(caption_full) > 1024:
-		caption_full = caption_full[:1024]
-
-	# Filter and dedupe media to avoid duplicates and low-quality images
-	if media:
-		media = _filter_and_dedupe_media(media)
-
-	# If media group provided, try to send as album (up to 10 items)
-	if media:
-		group = []
-		for m in media[:4]:
-			try:
-				t = (m.get("type") or "").strip().lower()
-				u = (m.get("url") or "").strip()
-				if not u:
-					continue
-				if t == "video":
-					group.append({"type": "video", "media": u})
-				else:
-					group.append({"type": "photo", "media": u})
-			except Exception:
-				continue
-		if group and len(group) >= 2:
-			try:
-				group[0]["caption"] = caption_full
-				group[0]["parse_mode"] = "HTML"
-				payload = {"chat_id": chat_id, "media": json.dumps(group)}
-				resp = requests.post(f"{base_url}/sendMediaGroup", data=payload, timeout=20)
-				resp.raise_for_status()
-				logger.info("Sent media group to Telegram.")
+	
+	# Filter media to only images and videos, limit to avoid telegram limits
+	filtered_media = []
+	if all_media:
+		for media_url in all_media[:10]:  # Telegram allows up to 10 items in media group
+			if media_url and media_url.startswith('http'):
+				# Simple check for image/video extensions
+				lower_url = media_url.lower()
+				if any(ext in lower_url for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.avi']):
+					filtered_media.append(media_url)
+	
+	# Try to send media group if we have multiple media items
+	if len(filtered_media) > 1:
+		try:
+			media_group = []
+			caption = message_html if len(message_html) <= 1024 else message_html[:1021] + "..."
+			
+			for i, media_url in enumerate(filtered_media[:10]):  # Telegram limit
+				media_item = {
+					"type": "photo",  # Default to photo, Telegram will handle videos
+					"media": media_url
+				}
+				# Add caption only to the first item
+				if i == 0:
+					media_item["caption"] = caption
+					media_item["parse_mode"] = "HTML"
+				media_group.append(media_item)
+			
+			import json as json_lib
+			media_payload = {
+				"chat_id": chat_id,
+				"media": json_lib.dumps(media_group)
+			}
+			
+			resp = requests.post(f"{base_url}/sendMediaGroup", data=media_payload, timeout=15)
+			if resp.status_code == 200:
+				logger.info("Sent media group with %d items to Telegram.", len(filtered_media))
 				return
-			except Exception as exc:
-				logger.error("Telegram sendMediaGroup failed: %s", exc)
-				# fall back to single
-		elif group and len(group) == 1 and not image_url:
-			one = group[0]
-			try:
-				if one.get("type") == "photo":
-					payload = {"chat_id": chat_id, "photo": one.get("media"), "caption": caption_full, "parse_mode": "HTML"}
-					resp = requests.post(f"{base_url}/sendPhoto", data=payload, timeout=15)
-					resp.raise_for_status()
-				elif one.get("type") == "video":
-					payload = {"chat_id": chat_id, "video": one.get("media"), "caption": caption_full, "parse_mode": "HTML"}
-					resp = requests.post(f"{base_url}/sendVideo", data=payload, timeout=20)
-					resp.raise_for_status()
-				return
-			except Exception as exc:
-				logger.error("Telegram send single media failed: %s", exc)
+			else:
+				logger.warning("Media group failed, falling back to single photo: %s", resp.text)
+		except Exception as exc:
+			logger.warning("Media group send failed, falling back: %s", exc)
 
 	# Prefer sending photo with HTML caption when image is available
 	if image_url:
-		caption = caption_full
+		caption = message_html
+		if len(caption) > 1024:
+			caption = caption[:1021] + "..."
 		photo_payload = {
 			"chat_id": chat_id,
 			"photo": image_url,
@@ -205,7 +194,9 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 			if resp.status_code == 400 and message_plain:
 				# Fallback to plain caption
 				photo_payload.pop("parse_mode", None)
-				plain_cap = (message_plain or "")[:1024]
+				plain_cap = message_plain
+				if len(plain_cap) > 1024:
+					plain_cap = plain_cap[:1021] + "..."
 				photo_payload["caption"] = plain_cap
 				resp = requests.post(f"{base_url}/sendPhoto", data=photo_payload, timeout=15)
 			resp.raise_for_status()
@@ -213,20 +204,6 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 			return
 		except Exception as exc:
 			logger.error("Telegram sendPhoto failed: %s", exc)
-			# Fall through to text-only
-
-	# If we have raw image bytes (AI generated), upload via multipart
-	if image_bytes:
-		try:
-			caption = caption_full
-			files = {"photo": ("image.png", image_bytes, "image/png")}
-			data = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
-			resp = requests.post(f"{base_url}/sendPhoto", data=data, files=files, timeout=20)
-			resp.raise_for_status()
-			logger.info("Sent generated image with caption to Telegram.")
-			return
-		except Exception as exc:
-			logger.error("Telegram sendPhoto(bytes) failed: %s", exc)
 			# Fall through to text-only
 
 	# Text-only message
@@ -253,22 +230,3 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 	except Exception as exc:
 		logger.error("Telegram send failed: %s", exc)
 		raise
-
-
-def build_screenshot_url(page_url: str, provider: str = None, width: int = None) -> Optional[str]:
-	"""Return a screenshot image URL for the given page using a simple provider.
-
-	Providers:
-	- mshots (default): https://s.wordpress.com/mshots/v1/<url>?w=<width>
-	- thumio: https://image.thum.io/get/width/<width>/<url>
-	"""
-	try:
-		provider = (provider or os.getenv("SCREENSHOT_PROVIDER", "mshots")).strip().lower()
-		width = int(os.getenv("SCREENSHOT_WIDTH", str(width or 1200)))
-		enc = quote(page_url, safe="")
-		if provider == "thumio":
-			return f"https://image.thum.io/get/width/{width}/{enc}"
-		# default mshots
-		return f"https://s.wordpress.com/mshots/v1/{enc}?w={width}"
-	except Exception:
-		return None

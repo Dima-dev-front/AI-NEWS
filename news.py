@@ -21,76 +21,6 @@ class NewsFetcher:
 		self.fallback_image_url = fallback_image_url
 		self.feed_urls = [u.strip() for u in (feed_urls or []) if u and u.strip()]
 
-	def _upgrade_image_url(self, url: Optional[str]) -> Optional[str]:
-		"""Attempt to transform low-res/thumbnail image URLs into higher-resolution variants.
-
-		Heuristics for common CDNs: WordPress, Twitter/X, YouTube, Cloudinary, generic width/height params.
-		"""
-		if not url or not isinstance(url, str):
-			return url
-		try:
-			from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-			parsed = urlparse(url)
-			host = (parsed.netloc or "").lower()
-			path = parsed.path or ""
-			query = parse_qs(parsed.query, keep_blank_values=True)
-
-			# Skip known tiny thumbnail hosts if we can (will be filtered by prefer function too)
-			# Still return the same URL; decisions happen elsewhere
-
-			# WordPress: remove size suffix like -150x150 before extension
-			import re as _re
-			m = _re.search(r"-(\d{2,4})x(\d{2,4})(\.[a-zA-Z]{3,4})$", path)
-			if m:
-				path = path[: m.start()] + path[m.end()-len(m.group(3)) :]
-
-			# Twitter/X images: name=small/medium/large/orig → prefer orig
-			if "pbs.twimg.com" in host or "x.com" in host:
-				if "name" in query:
-					query["name"] = ["orig"]
-
-			# YouTube thumbnails
-			if "ytimg.com" in host and "/vi/" in path:
-				path = path.replace("/default.jpg", "/maxresdefault.jpg")
-				path = path.replace("/hqdefault.jpg", "/maxresdefault.jpg")
-
-			# Cloudinary: only replace existing transformation block; do not inject new one (may break signatures)
-			if "/upload/" in path and ("res.cloudinary.com" in host or "cloudinary" in host):
-				path = _re.sub(r"/upload/[^/]+/", "/upload/c_limit,w_1600/", path)
-
-			new_query = urlencode({k: v[0] if isinstance(v, list) and v else v for k, v in query.items()}, doseq=False)
-			return urlunparse(parsed._replace(path=path, query=new_query))
-		except Exception:
-			return url
-
-	def _pick_best_srcset(self, srcset_value: str) -> Optional[str]:
-		"""Parse srcset and return URL with largest width."""
-		if not srcset_value:
-			return None
-		try:
-			candidates = []
-			for part in srcset_value.split(","):
-				p = part.strip()
-				if not p:
-					continue
-				seg = p.split()
-				if not seg:
-					continue
-				u = seg[0]
-				w = 0
-				if len(seg) >= 2 and seg[1].endswith("w"):
-					try:
-						w = int(seg[1][:-1])
-					except Exception:
-						w = 0
-				candidates.append((w, u))
-			if not candidates:
-				return None
-			candidates.sort(key=lambda x: x[0], reverse=True)
-			return candidates[0][1]
-		except Exception:
-			return None
-
 	def _build_feed_url(self) -> str:
 		encoded = quote_plus(self.query)
 		return f"https://news.google.com/rss/search?q={encoded}&hl={self.locale}&gl={self.country}&ceid={self.country}:{self.locale}"
@@ -176,26 +106,18 @@ class NewsFetcher:
 					continue
 				seen_titles.add(title_key)
 
-				# Изображения/видео из RSS (собираем максимум)
-				feed_media: list[dict] = []
+				# Изображение/видео из RSS
 				feed_image = None
 				media_tag = item.find("media:content") or item.find("media:thumbnail")
 				if media_tag and media_tag.get("url"):
-					u = self._upgrade_image_url(media_tag.get("url"))
-					if u:
-						feed_image = u
-						feed_media.append({"type": "photo", "url": u})
-				enclosure = item.find("enclosure")
-				if enclosure and enclosure.get("url"):
-					media_type = (enclosure.get("type") or "").lower()
-					u = self._upgrade_image_url(enclosure.get("url"))
-					if u and (media_type.startswith("image") or media_type.startswith("video")):
-						if media_type.startswith("image"):
-							feed_media.append({"type": "photo", "url": u})
-							if not feed_image:
-								feed_image = u
-						else:
-							feed_media.append({"type": "video", "url": u})
+					feed_image = media_tag.get("url")
+				if not feed_image:
+					enclosure = item.find("enclosure")
+					if enclosure and enclosure.get("url"):
+						media_type = (enclosure.get("type") or "").lower()
+						# Accept images and videos
+						if media_type.startswith("image") or media_type.startswith("video"):
+							feed_image = enclosure.get("url")
 
 				# Мета со страницы статьи (включая canonical)
 				article_desc = None
@@ -206,28 +128,9 @@ class NewsFetcher:
 					if cand and cand.startswith("http") and not urlparse(cand).netloc.endswith("news.google.com"):
 						canon_link = cand
 				meta_image = meta.get("image") if meta else None
+				all_media = meta.get("all_media", []) if meta else []
 				if meta and meta.get("description"):
 					article_desc = meta.get("description")
-
-				# Медиа с самой страницы
-				page_media = meta.get("media") if meta else []
-				# Склеиваем и удаляем дубликаты, сохраняя порядок
-				combined_media: list[dict] = []
-				seen_media_urls: set[str] = set()
-				for m in (feed_media + (page_media or [])):
-					try:
-						t = (m.get("type") or "").strip().lower()
-						u = (m.get("url") or "").strip()
-						if not u or not t:
-							continue
-						if u in seen_media_urls:
-							continue
-						if t not in ("photo", "video"):
-							continue
-						seen_media_urls.add(u)
-						combined_media.append({"type": t, "url": u})
-					except Exception:
-						continue
 
 				image_url = self._prefer_article_image(feed_image, meta_image)
 				if not image_url and self.fallback_image_url:
@@ -237,8 +140,8 @@ class NewsFetcher:
 					"title": title,
 					"link": canon_link,
 					"image_url": image_url,
+					"all_media": all_media,
 					"description": article_desc or feed_desc_text,
-					"media": combined_media,
 				})
 				count += 1
 		return results
@@ -246,11 +149,11 @@ class NewsFetcher:
 	def _prefer_article_image(self, feed_image: Optional[str], meta_image: Optional[str]) -> Optional[str]:
 		if meta_image:
 			if not feed_image:
-				return self._upgrade_image_url(meta_image) or meta_image
+				return meta_image
 			feed_host = urlparse(feed_image).netloc
 			if "news.google" in feed_host or "gstatic" in feed_host:
-				return self._upgrade_image_url(meta_image) or meta_image
-		return self._upgrade_image_url(feed_image) or feed_image or meta_image
+				return meta_image
+		return feed_image or meta_image
 
 	def _extract_external_from_gnews(self, soup: BeautifulSoup, base: str) -> Optional[str]:
 		refresh = soup.find("meta", attrs={"http-equiv": "refresh"})
@@ -317,9 +220,9 @@ class NewsFetcher:
 			return None
 
 		image = None
+		all_media = []
 		description = None
 		canonical_url = None
-		collected_media: list[dict] = []
 		try:
 			soup = BeautifulSoup(resp.text, "html.parser")
 			host = urlparse(resp.url).netloc
@@ -343,7 +246,10 @@ class NewsFetcher:
 				canonical_url = self._canonicalize_url(canon_link)
 				page_url = canonical_url or page_url
 
-			# Search for images and videos
+			# Collect all media from the page
+			media_urls = set()
+			
+			# Meta tags for primary image/video
 			for attrs in (
 				{"property": "og:image:secure_url"},
 				{"property": "og:image:url"},
@@ -358,25 +264,74 @@ class NewsFetcher:
 			):
 				meta = soup.find("meta", attrs=attrs)
 				if meta and meta.get("content"):
-					val = meta.get("content").strip()
-					if not val:
-						continue
-					# Heuristics: decide media type
-					low = val.lower()
-					if any(k in attrs.get("property", "") for k in ("video",)) or any(k in attrs.get("name", "") for k in ("player",)) or low.endswith((".mp4",".mov",".m3u8",".webm")):
-						collected_media.append({"type": "video", "url": val})
-					else:
-						up = self._upgrade_image_url(val) or val
-						collected_media.append({"type": "photo", "url": up})
-						if not image:
-							image = up
+					url = meta.get("content")
+					if url:
+						media_urls.add(url)
+						if not image:  # Set first found as primary
+							image = url
+			
+			# Link tags
 			if not image:
 				lnk = soup.find("link", attrs={"rel": "image_src"})
 				if lnk and lnk.get("href"):
-					img_href = lnk.get("href")
-					img_up = self._upgrade_image_url(img_href) or img_href
-					image = img_up
-					collected_media.append({"type": "photo", "url": img_up})
+					url = lnk.get("href")
+					image = url
+					media_urls.add(url)
+			
+			# Find all img tags in article content
+			for img in soup.find_all("img", src=True):
+				src = img.get("src")
+				if src and not src.startswith("data:"):
+					# Convert relative URLs to absolute
+					if src.startswith("//"):
+						src = "https:" + src
+					elif src.startswith("/"):
+						src = urljoin(page_url, src)
+					elif not src.startswith("http"):
+						src = urljoin(page_url, src)
+					
+					# Filter out small icons and ads
+					width = img.get("width")
+					height = img.get("height")
+					if width and height:
+						try:
+							w, h = int(width), int(height)
+							if w < 100 or h < 100:  # Skip small images
+								continue
+						except ValueError:
+							pass
+					
+					# Skip common ad/tracking pixels
+					if any(skip in src.lower() for skip in ["pixel", "tracking", "analytics", "ads", "beacon"]):
+						continue
+					
+					media_urls.add(src)
+			
+			# Find video tags
+			for video in soup.find_all("video", src=True):
+				src = video.get("src")
+				if src:
+					if src.startswith("//"):
+						src = "https:" + src
+					elif src.startswith("/"):
+						src = urljoin(page_url, src)
+					elif not src.startswith("http"):
+						src = urljoin(page_url, src)
+					media_urls.add(src)
+			
+			# Find video source tags
+			for source in soup.find_all("source", src=True):
+				src = source.get("src")
+				if src:
+					if src.startswith("//"):
+						src = "https:" + src
+					elif src.startswith("/"):
+						src = urljoin(page_url, src)
+					elif not src.startswith("http"):
+						src = urljoin(page_url, src)
+					media_urls.add(src)
+			
+			all_media = list(media_urls)
 
 			for attrs in (
 				{"property": "og:description"},
@@ -386,49 +341,9 @@ class NewsFetcher:
 				meta = soup.find("meta", attrs=attrs)
 				if meta and meta.get("content"):
 					description = meta.get("content").strip(); break
-
-			# Fallback: scan article content for <img> and <video>
-			try:
-				for img in soup.find_all("img"):
-					srcset = img.get("srcset") or img.get("data-srcset")
-					u = None
-					if srcset:
-						u = self._pick_best_srcset(srcset)
-					if not u:
-						u = img.get("src") or img.get("data-src") or img.get("data-original")
-					if u and isinstance(u, str) and u.startswith("http"):
-						collected_media.append({"type": "photo", "url": (self._upgrade_image_url(u) or u)})
-				for video in soup.find_all("video"):
-					u = video.get("src")
-					if u and u.startswith("http"):
-						collected_media.append({"type": "video", "url": u})
-					for source in video.find_all("source"):
-						src = source.get("src")
-						if src and src.startswith("http"):
-							collected_media.append({"type": "video", "url": src})
-			except Exception:
-				pass
-
-			# Deduplicate while preserving order
-			seen_urls: set[str] = set()
-			unique_media: list[dict] = []
-			for m in collected_media:
-				try:
-					t = (m.get("type") or "").strip().lower()
-					u = (m.get("url") or "").strip()
-					if not u or not t:
-						continue
-					if u in seen_urls:
-						continue
-					if t not in ("photo","video"):
-						continue
-					seen_urls.add(u)
-					unique_media.append({"type": t, "url": u})
-				except Exception:
-					continue
 		except Exception as exc:
 			logger.info("Failed parsing article meta: %s", exc)
-		return {"image": image, "description": description, "canonical_url": canonical_url or page_url, "media": unique_media}
+		return {"image": image, "all_media": all_media, "description": description, "canonical_url": canonical_url or page_url}
 
 	def _canonicalize_url(self, url: str) -> str:
 		try:

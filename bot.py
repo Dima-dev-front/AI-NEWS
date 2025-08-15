@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 from news import NewsFetcher
 from summarizer import Summarizer
 from bot_utils import format_message_html, send_to_telegram, format_message_plain
-from bot_utils import build_screenshot_url
 
 
 logging.basicConfig(
@@ -68,7 +67,7 @@ def collapse_to_two_sentences(text: str, max_chars: int = 400) -> str:
 	if not short:
 		short = text
 	if len(short) > max_chars:
-		short = short[: max_chars].rstrip()
+		short = short[: max_chars - 3].rstrip() + "..."
 	return short
 
 
@@ -146,10 +145,7 @@ def main() -> None:
 	country = os.getenv("COUNTRY", "RU")
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
 	run_once = os.getenv("RUN_ONCE", "").lower() in ("1", "true", "yes", "on")
-	require_media = os.getenv("REQUIRE_MEDIA", "0").lower() in ("1", "true", "yes", "on")
-	placeholder_image_url = os.getenv("PLACEHOLDER_IMAGE_URL", "https://placehold.co/1200x675/png?text=AI+NEWS")
-	# Disable repost fallback by default to avoid duplicates
-	allow_repost_fallback = os.getenv("ALLOW_REPOST_FALLBACK", "0").lower() in ("1","true","yes","on")
+	require_media = os.getenv("REQUIRE_MEDIA", "1").lower() in ("1", "true", "yes", "on")
 
 	try:
 		check_interval_min = int(os.getenv("CHECK_INTERVAL_MIN", "60"))
@@ -183,11 +179,6 @@ def main() -> None:
 	recent_title_keys = load_recent_titles()
 	recent_title_keys_set = set(recent_title_keys)
 	mode = "RSS_FEEDS"
-	# Debug flags
-	debug_dump_rss = os.getenv("DEBUG_DUMP_RSS", "0").lower() in ("1","true","yes","on")
-	debug_log_skips = os.getenv("DEBUG_LOG_SKIPS", "1").lower() in ("1","true","yes","on")
-	bypass_recent_dedupe = os.getenv("BYPASS_RECENT_DEDUPE", "0").lower() in ("1","true","yes","on")
-	debug_dir = DATA_DIR / "debug"
 	logger.info(
 		"Starting bot. Mode=%s, Feeds=%d, Interval=%s min, Delay=%s sec, Published=%d",
 		mode,
@@ -202,17 +193,6 @@ def main() -> None:
 			items = fetcher.fetch(max_items=20)
 			logger.info("Fetched %d items", len(items))
 
-			# Optional: dump fetched items to debug file
-			if debug_dump_rss:
-				try:
-					debug_dir.mkdir(parents=True, exist_ok=True)
-					import json as _json, datetime as _dt
-					ts = _dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-					(debug_dir / f"rss_{ts}.json").write_text(_json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
-					logger.info("Saved RSS dump: %s", str(debug_dir / f"rss_{ts}.json"))
-				except Exception as _:
-					logger.info("Failed to save RSS dump")
-
 			# Позволяем ИИ выбрать самые интересные элементы (по заголовкам/ссылкам)
 			candidate_view = [{"title": (it.get("title") or ""), "link": (it.get("link") or "")} for it in items]
 			best_indices: list[int] = []
@@ -225,32 +205,22 @@ def main() -> None:
 			ordered_indices = list(seen_idx) + [i for i in range(len(items)) if i not in seen_idx]
 
 			new_count = 0
-			skip_stats = {
-				"invalid": 0,
-				"published": 0,
-				"recent_title": 0,
-				"ai_title": 0,
-				"no_media": 0,
-			}
 			for idx in ordered_indices:
 				item = items[idx]
 				title = item.get("title") or ""
 				link = item.get("link") or ""
 				image_url = item.get("image_url") or None
-				media = item.get("media") or None
+				all_media = item.get("all_media", [])
 				feed_or_meta_desc = item.get("description") or ""
 				if not title or not link:
-					skip_stats["invalid"] += 1
 					continue
 
 				if link in published_links:
-					skip_stats["published"] += 1
 					continue
 
 				# Early title-based dedupe on feed title
 				orig_title_key = title_key(title)
-				if (not bypass_recent_dedupe) and orig_title_key and orig_title_key in recent_title_keys_set:
-					skip_stats["recent_title"] += 1
+				if orig_title_key and orig_title_key in recent_title_keys_set:
 					continue
 
 				ai_output = summarizer.summarize(title=title, url=link)
@@ -270,23 +240,12 @@ def main() -> None:
 
 				# Dedupe with AI title if it differs
 				ai_title_key = title_key(final_title)
-				if (not bypass_recent_dedupe) and ai_title_key and ai_title_key in recent_title_keys_set:
-					skip_stats["ai_title"] += 1
+				if ai_title_key and ai_title_key in recent_title_keys_set:
 					continue
 
-				# If no media available, try fallback image or page screenshot
-				if not (image_url or (media and len(media) > 0)):
-					if fallback_image_url:
-						image_url = fallback_image_url
-					if not image_url:
-						screenshot_url = build_screenshot_url(link)
-						if screenshot_url:
-							image_url = screenshot_url
-					if not image_url:
-						image_url = placeholder_image_url
-					if require_media and not (image_url or (media and len(media) > 0)):
-						skip_stats["no_media"] += 1
-						continue
+				# Skip news without images or videos (if required)
+				if require_media and not image_url:
+					continue
 
 				# Append CTA if present
 				if cta_url:
@@ -296,7 +255,7 @@ def main() -> None:
 				message_plain = format_message_plain(title=final_title, summary=summary, source_url=link)
 
 				try:
-					send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, media=media)
+					send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, all_media=all_media)
 					published_links.add(link)
 					save_published(published_links)
 					# Update recent titles store
@@ -316,11 +275,6 @@ def main() -> None:
 				time.sleep(post_delay_sec)
 
 			if new_count == 0:
-				if debug_log_skips:
-					logger.info(
-						"Skip summary: invalid=%s, published=%s, recent_title=%s, ai_title=%s, no_media=%s",
-						skip_stats["invalid"], skip_stats["published"], skip_stats["recent_title"], skip_stats["ai_title"], skip_stats["no_media"],
-					)
 				logger.info("No new items to post")
 		except Exception as loop_exc:
 			logger.error("Loop error: %s", loop_exc)

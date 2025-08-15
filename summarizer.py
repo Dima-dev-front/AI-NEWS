@@ -41,42 +41,32 @@ class Summarizer:
     def summarize(self, title: str, url: str) -> str:
         if self.disabled or not self.client:
             return ""
-        debug_log_ai = os.getenv("DEBUG_LOG_AI", "0").lower() in ("1","true","yes","on")
-        debug_save_ai = os.getenv("DEBUG_SAVE_AI", "0").lower() in ("1","true","yes","on")
-        debug_dir = os.path.join("data", "debug")
         prompt = (
-            "Ти — україномовний редактор новин. Поверни СТРОГО JSON без пояснень з ключами 'title', 'summary', опційним 'cta_url'. "
-            "'title' — до 90 символів, лаконічний. "
-            "'summary' — 2–4 короткі абзаци (кожен з нового рядка, між абзацами порожній рядок): факти, контекст, наслідки. Без води, без HTML. Не використовуй '...'. "
-            "Пиши нейтрально від редакції: без звернень на кшталт 'автор каже/говорить', 'за словами автора', 'я/ми думаємо'. "
-            "Окремим останнім абзацом — коротка дотепна ремарка, що починається з доречної емодзі і має відступ (окремий абзац). Без образ і політики. "
-            "'cta_url' — повний https://‑лінк на 'Спробувати/Демо/Почати/Sign up/Get started/Download', лише якщо є у матеріалі; інакше null.\n\n"
+            "Ти — професійний редактор новин. Поверни результат СТРОГО у форматі JSON без пояснень, з ключами 'title', 'summary' українською мовою, і опційним 'cta_url'. "
+            "'title' — короткий заголовок (до 90 символів). "
+            "'summary' — структурована новина з 3–5 речень у новинному стилі:\n"
+            "- Пиши як НОВИНУ, а не як переказ ('компанія оголосила', 'відбулася подія', 'з'явилася інформація')\n"
+            "- НЕ використовуй '...', 'автор говорить', 'у статті зазначається', 'за словами'\n" 
+            "- Подавай факти прямо та конкретно\n"
+            "- Кожне речення має містити конкретну інформацію\n"
+            "- ОСТАННЄ речення — коротка доречна дотепна ремарка (1 коротке речення, без образ і політики)\n"
+            "- Без емодзі, без HTML, новинний стиль\n"
+            "- Розділяй абзаци символом \\n для кращої читабельності\n"
+            "'cta_url' — повний https:// посилання на сторінку 'Спробувати/Демо/Почати/Sign up/Get started/Download', якщо в матеріалі явно присутнє таке посилання; якщо ні — null.\n\n"
             f"Заголовок оригіналу: {title}\nДжерело: {url}\n\nВивід (ЛИШЕ JSON):"
         )
         try:
             logger.info(f"Summarize using model: {self.model_name}")
-            if debug_log_ai:
-                logger.info("AI summarize prompt: title=%s url=%s", title, url)
             completion = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "Ти — україномовний редактор новин. Відповідаєш ЛИШЕ валідним компактним JSON без трійних лапок і без пояснень. Форматуй 'summary' абзацами (між ними порожній рядок). Останній абзац — коротка дотепна ремарка з емодзі на початку. Не використовуй '...'. Пиши нейтрально від редакції (без 'автор каже', 'за словами автора')."},
+                    {"role": "system", "content": "Ти — професійний редактор новин. Відповідаєш ЛИШЕ валідним JSON без трійних лапок і пояснень. Пиши новини у прямому стилі, без переказу. 'summary' містить 3–5 речень + дотепну ремарку в кінці. Використовуй \\n для абзаців."},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.35,
                 max_tokens=360,
             )
             text = completion.choices[0].message.content.strip()
-            if debug_save_ai:
-                try:
-                    import json as _json, datetime as _dt, os as _os
-                    _os.makedirs(debug_dir, exist_ok=True)
-                    ts = _dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-                    (_os.path.join(debug_dir, f"ai_summarize_{ts}.json"))
-                    with open(_os.path.join(debug_dir, f"ai_summarize_{ts}.json"), "w", encoding="utf-8") as f:
-                        _json.dump({"title": title, "url": url, "prompt": prompt, "output": text}, f, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
             return text
         except Exception as exc:
             logger.error("%s summarize failed: %s", self.provider.upper(), exc)
@@ -89,9 +79,6 @@ class Summarizer:
         """
         if self.disabled or not self.client or not items:
             return []
-        debug_log_ai = os.getenv("DEBUG_LOG_AI", "0").lower() in ("1","true","yes","on")
-        debug_save_ai = os.getenv("DEBUG_SAVE_AI", "0").lower() in ("1","true","yes","on")
-        debug_dir = os.path.join("data", "debug")
         # Prepare compact numbered list to keep tokens low
         lines = []
         for idx, it in enumerate(items[:20]):
@@ -116,8 +103,6 @@ class Summarizer:
         )
         try:
             logger.info(f"Select_best using model: {self.model_name}")
-            if debug_log_ai:
-                logger.info("AI select_best items: %d", len(items))
             completion = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
@@ -128,15 +113,6 @@ class Summarizer:
                 max_tokens=200,
             )
             text = completion.choices[0].message.content.strip()
-            if debug_save_ai:
-                try:
-                    import json as _json, datetime as _dt, os as _os
-                    _os.makedirs(debug_dir, exist_ok=True)
-                    ts = _dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-                    with open(_os.path.join(debug_dir, f"ai_select_{ts}.json"), "w", encoding="utf-8") as f:
-                        _json.dump({"items": items, "prompt": prompt, "output": text}, f, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
             import json as _json
             try:
                 obj = _json.loads(text)
