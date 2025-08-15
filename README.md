@@ -94,6 +94,33 @@ https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/fe
 - `aiwire.net` - HTTP 403 блокировка  
 - `spacenews.com` - HTTP 429 rate limiting
 
+### 🔧 Дополнительные RSS-фиды по категориям
+
+**🚗 Автомобили и транспорт:**
+```
+https://www.motortrend.com/feed/,https://www.caranddriver.com/rss/all/,https://electrek.co/feed/,https://insideevs.com/news/feed/
+```
+
+**⚔️ Военная техника и оборона:**
+```
+https://www.defensenews.com/rss/defense-news/,https://breakingdefense.com/feed/,https://www.military.com/rss/news
+```
+
+**⚙️ Инженерия и технологии:**
+```
+https://spectrum.ieee.org/rss/fulltext,https://www.popularmechanics.com/rss/all/,https://www.engadget.com/rss.xml,https://arstechnica.com/feed/
+```
+
+**🏥 Медицина и биотехнологии:**
+```
+https://www.sciencedaily.com/rss/health_medicine.xml,https://www.statnews.com/feed/,https://www.fiercebiotech.com/rss/xml
+```
+
+**📡 GitHub релизы (технологические новости):**
+```
+https://github.com/openai/openai-python/releases.atom,https://github.com/microsoft/vscode/releases.atom,https://github.com/tensorflow/tensorflow/releases.atom,https://github.com/pytorch/pytorch/releases.atom,https://github.com/facebook/react/releases.atom
+```
+
 ### ⚙️ Переменные окружения
 
 | Переменная | По умолчанию | Описание |
