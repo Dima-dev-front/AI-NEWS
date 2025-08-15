@@ -20,5 +20,7 @@
   "building a decoderonly transformer model for text generation",
   "розроблено трансформермодель лише з декодером для генерації тексту",
   "building a transformer model for language translation",
-  "створено трансформерну модель для перекладу мов"
+  "створено трансформерну модель для перекладу мов",
+  "how to diagnose why your regression model fails",
+  "методи діагностики невдач регресійних моделей"
 ]
