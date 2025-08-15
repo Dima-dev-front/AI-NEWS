@@ -67,7 +67,7 @@ def collapse_to_two_sentences(text: str, max_chars: int = 400) -> str:
 	if not short:
 		short = text
 	if len(short) > max_chars:
-		short = short[: max_chars - 3].rstrip() + "..."
+		short = short[: max_chars].rstrip()
 	return short
 
 
@@ -210,6 +210,7 @@ def main() -> None:
 				title = item.get("title") or ""
 				link = item.get("link") or ""
 				image_url = item.get("image_url") or None
+				media = item.get("media") or None
 				feed_or_meta_desc = item.get("description") or ""
 				if not title or not link:
 					continue
@@ -243,7 +244,7 @@ def main() -> None:
 					continue
 
 				# Skip news without images or videos (if required)
-				if require_media and not image_url:
+				if require_media and not (image_url or (media and len(media) > 0)):
 					continue
 
 				# Append CTA if present
@@ -254,7 +255,7 @@ def main() -> None:
 				message_plain = format_message_plain(title=final_title, summary=summary, source_url=link)
 
 				try:
-					send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain)
+					send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, media=media)
 					published_links.add(link)
 					save_published(published_links)
 					# Update recent titles store

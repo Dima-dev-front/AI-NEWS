@@ -106,18 +106,26 @@ class NewsFetcher:
 					continue
 				seen_titles.add(title_key)
 
-				# Изображение/видео из RSS
+				# Изображения/видео из RSS (собираем максимум)
+				feed_media: list[dict] = []
 				feed_image = None
 				media_tag = item.find("media:content") or item.find("media:thumbnail")
 				if media_tag and media_tag.get("url"):
-					feed_image = media_tag.get("url")
-				if not feed_image:
-					enclosure = item.find("enclosure")
-					if enclosure and enclosure.get("url"):
-						media_type = (enclosure.get("type") or "").lower()
-						# Accept images and videos
-						if media_type.startswith("image") or media_type.startswith("video"):
-							feed_image = enclosure.get("url")
+					u = media_tag.get("url")
+					if u:
+						feed_image = u
+						feed_media.append({"type": "photo", "url": u})
+				enclosure = item.find("enclosure")
+				if enclosure and enclosure.get("url"):
+					media_type = (enclosure.get("type") or "").lower()
+					u = enclosure.get("url")
+					if u and (media_type.startswith("image") or media_type.startswith("video")):
+						if media_type.startswith("image"):
+							feed_media.append({"type": "photo", "url": u})
+							if not feed_image:
+								feed_image = u
+						else:
+							feed_media.append({"type": "video", "url": u})
 
 				# Мета со страницы статьи (включая canonical)
 				article_desc = None
@@ -131,6 +139,26 @@ class NewsFetcher:
 				if meta and meta.get("description"):
 					article_desc = meta.get("description")
 
+				# Медиа с самой страницы
+				page_media = meta.get("media") if meta else []
+				# Склеиваем и удаляем дубликаты, сохраняя порядок
+				combined_media: list[dict] = []
+				seen_media_urls: set[str] = set()
+				for m in (feed_media + (page_media or [])):
+					try:
+						t = (m.get("type") or "").strip().lower()
+						u = (m.get("url") or "").strip()
+						if not u or not t:
+							continue
+						if u in seen_media_urls:
+							continue
+						if t not in ("photo", "video"):
+							continue
+						seen_media_urls.add(u)
+						combined_media.append({"type": t, "url": u})
+					except Exception:
+						continue
+
 				image_url = self._prefer_article_image(feed_image, meta_image)
 				if not image_url and self.fallback_image_url:
 					image_url = self.fallback_image_url
@@ -140,6 +168,7 @@ class NewsFetcher:
 					"link": canon_link,
 					"image_url": image_url,
 					"description": article_desc or feed_desc_text,
+					"media": combined_media,
 				})
 				count += 1
 		return results
@@ -220,6 +249,7 @@ class NewsFetcher:
 		image = None
 		description = None
 		canonical_url = None
+		collected_media: list[dict] = []
 		try:
 			soup = BeautifulSoup(resp.text, "html.parser")
 			host = urlparse(resp.url).netloc
@@ -258,11 +288,22 @@ class NewsFetcher:
 			):
 				meta = soup.find("meta", attrs=attrs)
 				if meta and meta.get("content"):
-					image = meta.get("content"); break
+					val = meta.get("content").strip()
+					if not val:
+						continue
+					# Heuristics: decide media type
+					low = val.lower()
+					if any(k in attrs.get("property", "") for k in ("video",)) or any(k in attrs.get("name", "") for k in ("player",)) or low.endswith((".mp4",".mov",".m3u8",".webm")):
+						collected_media.append({"type": "video", "url": val})
+					else:
+						collected_media.append({"type": "photo", "url": val})
+					if not image and collected_media[-1]["type"] == "photo":
+						image = val
 			if not image:
 				lnk = soup.find("link", attrs={"rel": "image_src"})
 				if lnk and lnk.get("href"):
 					image = lnk.get("href")
+					collected_media.append({"type": "photo", "url": image})
 
 			for attrs in (
 				{"property": "og:description"},
@@ -272,9 +313,44 @@ class NewsFetcher:
 				meta = soup.find("meta", attrs=attrs)
 				if meta and meta.get("content"):
 					description = meta.get("content").strip(); break
+
+			# Fallback: scan article content for <img> and <video>
+			try:
+				for img in soup.find_all("img"):
+					u = img.get("src") or img.get("data-src") or img.get("data-original")
+					if u and isinstance(u, str) and u.startswith("http"):
+						collected_media.append({"type": "photo", "url": u})
+				for video in soup.find_all("video"):
+					u = video.get("src")
+					if u and u.startswith("http"):
+						collected_media.append({"type": "video", "url": u})
+					for source in video.find_all("source"):
+						src = source.get("src")
+						if src and src.startswith("http"):
+							collected_media.append({"type": "video", "url": src})
+			except Exception:
+				pass
+
+			# Deduplicate while preserving order
+			seen_urls: set[str] = set()
+			unique_media: list[dict] = []
+			for m in collected_media:
+				try:
+					t = (m.get("type") or "").strip().lower()
+					u = (m.get("url") or "").strip()
+					if not u or not t:
+						continue
+					if u in seen_urls:
+						continue
+					if t not in ("photo","video"):
+						continue
+					seen_urls.add(u)
+					unique_media.append({"type": t, "url": u})
+				except Exception:
+					continue
 		except Exception as exc:
 			logger.info("Failed parsing article meta: %s", exc)
-		return {"image": image, "description": description, "canonical_url": canonical_url or page_url}
+		return {"image": image, "description": description, "canonical_url": canonical_url or page_url, "media": unique_media}
 
 	def _canonicalize_url(self, url: str) -> str:
 		try:
