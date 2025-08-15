@@ -283,7 +283,44 @@ def main() -> None:
 				time.sleep(post_delay_sec)
 
 			if new_count == 0:
-				logger.info("No new items to post")
+				# Fallback: try to post at least one item ignoring recent-title dedupe
+				for item in items:
+					title = item.get("title") or ""
+					link = item.get("link") or ""
+					if not title or not link or link in published_links:
+						continue
+					image_url = item.get("image_url") or None
+					media = item.get("media") or None
+					feed_or_meta_desc = item.get("description") or ""
+					ai_output = summarizer.summarize(title=title, url=link)
+					parsed_title, parsed_summary, cta_url = parse_ai_json(ai_output)
+					summary = parsed_summary or collapse_to_two_sentences(feed_or_meta_desc) or title
+					final_title = parsed_title.strip() if parsed_title else title
+					# Ensure we have media via fallback image or screenshot
+					if not (image_url or (media and len(media) > 0)):
+						if fallback_image_url:
+							image_url = fallback_image_url
+						if not image_url:
+							screenshot_url = build_screenshot_url(link)
+							if screenshot_url:
+								image_url = screenshot_url
+					if require_media and not (image_url or (media and len(media) > 0)):
+						continue
+					if cta_url:
+						summary = f"{summary}\n\nСпробувати: {cta_url}"
+					message_html = format_message_html(title=final_title, summary=summary, source_url=link)
+					message_plain = format_message_plain(title=final_title, summary=summary, source_url=link)
+					try:
+						send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, media=media)
+						published_links.add(link)
+						save_published(published_links)
+						new_count = 1
+						logger.info("Posted (fallback): %s", final_title)
+						break
+					except Exception as exc:
+						logger.error("Failed to post (fallback): %s", exc)
+				if new_count == 0:
+					logger.info("No new items to post")
 		except Exception as loop_exc:
 			logger.error("Loop error: %s", loop_exc)
 
