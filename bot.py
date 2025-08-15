@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 from news import NewsFetcher
 from summarizer import Summarizer
 from bot_utils import format_message_html, send_to_telegram, format_message_plain
-from image_gen import ImageGenerator
 from bot_utils import build_screenshot_url
 
 
@@ -176,7 +175,6 @@ def main() -> None:
 
 	fetcher = NewsFetcher(query=query, locale=locale, country=country, fallback_image_url=fallback_image_url, feed_urls=rss_feeds)
 	summarizer = Summarizer(model_name=model_name)
-	image_gen = ImageGenerator()
 
 	published_links = load_published()
 	recent_title_keys = load_recent_titles()
@@ -246,19 +244,15 @@ def main() -> None:
 				if ai_title_key and ai_title_key in recent_title_keys_set:
 					continue
 
-				# If media required but none available, attempt AI image generation
-				ai_image_bytes = None
+				# If no media available, try fallback image or page screenshot
 				if not (image_url or (media and len(media) > 0)):
-					try:
-						ai_image_bytes = image_gen.generate_image_bytes(title=final_title, summary=summary, locale=locale)
-					except Exception:
-						ai_image_bytes = None
-					# If AI image not available, build a screenshot URL of the source page
-					if not ai_image_bytes:
+					if fallback_image_url:
+						image_url = fallback_image_url
+					if not image_url:
 						screenshot_url = build_screenshot_url(link)
 						if screenshot_url:
 							image_url = screenshot_url
-					if require_media and not (ai_image_bytes or image_url or (media and len(media) > 0)):
+					if require_media and not (image_url or (media and len(media) > 0)):
 						continue
 
 				# Append CTA if present
@@ -269,7 +263,7 @@ def main() -> None:
 				message_plain = format_message_plain(title=final_title, summary=summary, source_url=link)
 
 				try:
-					send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, media=media, image_bytes=ai_image_bytes)
+					send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, media=media)
 					published_links.add(link)
 					save_published(published_links)
 					# Update recent titles store
