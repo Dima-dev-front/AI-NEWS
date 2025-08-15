@@ -77,9 +77,9 @@ def parse_feed_urls(env_value: str) -> list:
 	return [u.strip() for u in env_value.split(",") if u.strip()]
 
 
-def parse_ai_json(output: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def parse_ai_json(output: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
 	if not output:
-		return None, None, None
+		return None, None, None, None
 	text = output.strip()
 	if text.startswith("```"):
 		lines = text.splitlines()
@@ -91,20 +91,24 @@ def parse_ai_json(output: str) -> Tuple[Optional[str], Optional[str], Optional[s
 			title = obj.get("title")
 			summary = obj.get("summary")
 			cta_url = obj.get("cta_url")
+			image_prompt = obj.get("image_prompt")
 			if isinstance(title, str):
 				title = title.strip()
 			if isinstance(summary, str):
 				summary = summary.strip()
 			if isinstance(cta_url, str):
 				cta_url = cta_url.strip()
+			if isinstance(image_prompt, str):
+				image_prompt = image_prompt.strip()
 			return (
 				title if isinstance(title, str) and title else None,
 				summary if isinstance(summary, str) and summary else None,
 				cta_url if isinstance(cta_url, str) and cta_url.lower().startswith("http") else None,
+				image_prompt if isinstance(image_prompt, str) and image_prompt else None,
 			)
 	except Exception:
-		return None, None, None
-	return None, None, None
+		return None, None, None, None
+	return None, None, None, None
 
 
 def load_recent_titles() -> list:
@@ -146,6 +150,7 @@ def main() -> None:
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
 	run_once = os.getenv("RUN_ONCE", "").lower() in ("1", "true", "yes", "on")
 	require_media = os.getenv("REQUIRE_MEDIA", "0").lower() in ("1", "true", "yes", "on")
+	generate_images = os.getenv("GENERATE_AI_IMAGES", "1").lower() in ("1", "true", "yes", "on")
 
 	try:
 		check_interval_min = int(os.getenv("CHECK_INTERVAL_MIN", "30"))
@@ -236,7 +241,7 @@ def main() -> None:
 					continue
 
 				ai_output = summarizer.summarize(title=title, url=link)
-				parsed_title, parsed_summary, cta_url = parse_ai_json(ai_output)
+				parsed_title, parsed_summary, cta_url, image_prompt = parse_ai_json(ai_output)
 
 				if parsed_summary:
 					summary = parsed_summary
@@ -256,6 +261,19 @@ def main() -> None:
 					skipped_reasons["ai_duplicate"] += 1
 					logger.debug("Skipping item %d: AI title duplicate - %s", idx, final_title[:50])
 					continue
+
+				# Generate AI image if we have a prompt and no existing image
+				generated_image_url = None
+				if generate_images and image_prompt and not image_url:
+					try:
+						generated_image_url = summarizer.generate_image(image_prompt)
+						if generated_image_url:
+							logger.info("Generated AI image for news: %s", final_title[:50])
+							image_url = generated_image_url
+						else:
+							logger.info("Failed to generate AI image, using fallback")
+					except Exception as exc:
+						logger.error("Error generating AI image: %s", exc)
 
 				# Skip news without images or videos (if required)
 				if require_media and not image_url:

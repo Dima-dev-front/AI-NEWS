@@ -42,7 +42,7 @@ class Summarizer:
         if self.disabled or not self.client:
             return ""
         prompt = (
-            "Ти — професійний редактор новин. Поверни результат СТРОГО у форматі JSON без пояснень, з ключами 'title', 'summary' українською мовою, і опційним 'cta_url'. "
+            "Ти — професійний редактор новин. Поверни результат СТРОГО у форматі JSON без пояснень, з ключами 'title', 'summary', 'image_prompt' українською мовою, і опційним 'cta_url'. "
             "'title' — короткий заголовок (до 90 символів). "
             "'summary' — структурована новина з 3–5 речень у новинному стилі:\n"
             "- Пиши як НОВИНУ, а не як переказ ('компанія оголосила', 'відбулася подія', 'з'явилася інформація')\n"
@@ -52,6 +52,7 @@ class Summarizer:
             "- ОСТАННЄ речення — ОБОВ'ЯЗКОВО коротка доречна дотепна ремарка або коментар (максимум 10 слів, без образ і політики)\n"
             "- Без емодзі, без HTML, новинний стиль\n"
             "- Розділяй абзаци символом \\n для кращої читабельності\n"
+            "'image_prompt' — короткий опис для генерації зображення АНГЛІЙСЬКОЮ мовою (до 200 символів), що візуально відображає суть новини. Стиль: фотореалістичний, сучасний, професійний. Без тексту на зображенні.\n"
             "'cta_url' — повний https:// посилання на сторінку 'Спробувати/Демо/Почати/Sign up/Get started/Download', якщо в матеріалі явно присутнє таке посилання; якщо ні — null.\n\n"
             f"Заголовок оригіналу: {title}\nДжерело: {url}\n\nВивід (ЛИШЕ JSON):"
         )
@@ -60,7 +61,7 @@ class Summarizer:
             completion = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "Ти — професійний редактор новин. Відповідаєш ЛИШЕ валідним JSON без трійних лапок і пояснень. Пиши новини у прямому стилі, без переказу. 'summary' містить 3–5 речень + ОБОВ'ЯЗКОВО коротку дотепну ремарку в кінці (максимум 10 слів). Використовуй \\n для абзаців."},
+                    {"role": "system", "content": "Ти — професійний редактор новин. Відповідаєш ЛИШЕ валідним JSON без трійних лапок і пояснень. Пиши новини у прямому стилі, без переказу. 'summary' містить 3–5 речень + ОБОВ'ЯЗКОВО коротку дотепну ремарку в кінці (максимум 10 слів). 'image_prompt' англійською для DALL-E генерації. Використовуй \\n для абзаців."},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.35,
@@ -135,3 +136,38 @@ class Summarizer:
         except Exception as exc:
             logger.error("%s select_best failed: %s", self.provider.upper(), exc)
             return []
+
+    def generate_image(self, prompt: str) -> Optional[str]:
+        """Generate an image using DALL-E based on the provided prompt.
+        
+        Returns URL of the generated image or None if generation failed.
+        """
+        if self.disabled or not self.client or not prompt:
+            return None
+        
+        # Only OpenAI supports DALL-E image generation
+        if self.provider != "openai":
+            logger.info("Image generation only supported with OpenAI provider")
+            return None
+            
+        try:
+            logger.info(f"Generating image with DALL-E: {prompt[:50]}...")
+            response = self.client.images.generate(
+                model="dall-e-3",
+                prompt=prompt,
+                size="1024x1024",
+                quality="standard",
+                n=1,
+            )
+            
+            if response.data and len(response.data) > 0:
+                image_url = response.data[0].url
+                logger.info("Image generated successfully")
+                return image_url
+            else:
+                logger.warning("No image data returned from DALL-E")
+                return None
+                
+        except Exception as exc:
+            logger.error("DALL-E image generation failed: %s", exc)
+            return None
