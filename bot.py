@@ -147,6 +147,8 @@ def main() -> None:
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
 	run_once = os.getenv("RUN_ONCE", "").lower() in ("1", "true", "yes", "on")
 	require_media = os.getenv("REQUIRE_MEDIA", "1").lower() in ("1", "true", "yes", "on")
+	placeholder_image_url = os.getenv("PLACEHOLDER_IMAGE_URL", "https://placehold.co/1200x675/png?text=AI+NEWS")
+	allow_repost_fallback = os.getenv("ALLOW_REPOST_FALLBACK", "1").lower() in ("1","true","yes","on")
 
 	try:
 		check_interval_min = int(os.getenv("CHECK_INTERVAL_MIN", "60"))
@@ -252,6 +254,8 @@ def main() -> None:
 						screenshot_url = build_screenshot_url(link)
 						if screenshot_url:
 							image_url = screenshot_url
+					if not image_url:
+						image_url = placeholder_image_url
 					if require_media and not (image_url or (media and len(media) > 0)):
 						continue
 
@@ -304,6 +308,8 @@ def main() -> None:
 							screenshot_url = build_screenshot_url(link)
 							if screenshot_url:
 								image_url = screenshot_url
+						if not image_url:
+							image_url = placeholder_image_url
 					if require_media and not (image_url or (media and len(media) > 0)):
 						continue
 					if cta_url:
@@ -319,6 +325,42 @@ def main() -> None:
 						break
 					except Exception as exc:
 						logger.error("Failed to post (fallback): %s", exc)
+				# As last resort, allow repost of an already published link if enabled
+				if new_count == 0 and allow_repost_fallback:
+					for item in items:
+						title = item.get("title") or ""
+						link = item.get("link") or ""
+						if not title or not link:
+							continue
+						image_url = item.get("image_url") or None
+						media = item.get("media") or None
+						feed_or_meta_desc = item.get("description") or ""
+						ai_output = summarizer.summarize(title=title, url=link)
+						parsed_title, parsed_summary, cta_url = parse_ai_json(ai_output)
+						summary = parsed_summary or collapse_to_two_sentences(feed_or_meta_desc) or title
+						final_title = parsed_title.strip() if parsed_title else title
+						if not (image_url or (media and len(media) > 0)):
+							if fallback_image_url:
+								image_url = fallback_image_url
+							if not image_url:
+								screenshot_url = build_screenshot_url(link)
+								if screenshot_url:
+									image_url = screenshot_url
+							if not image_url:
+								image_url = placeholder_image_url
+						if require_media and not (image_url or (media and len(media) > 0)):
+							continue
+						if cta_url:
+							summary = f"{summary}\n\nСпробувати: {cta_url}"
+						message_html = format_message_html(title=final_title, summary=summary, source_url=link)
+						message_plain = format_message_plain(title=final_title, summary=summary, source_url=link)
+						try:
+							send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, media=media)
+							new_count = 1
+							logger.info("Posted (fallback-repost): %s", final_title)
+							break
+						except Exception as exc:
+							logger.error("Failed to post (fallback-repost): %s", exc)
 				if new_count == 0:
 					logger.info("No new items to post")
 		except Exception as loop_exc:
