@@ -145,7 +145,7 @@ def main() -> None:
 	country = os.getenv("COUNTRY", "RU")
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
 	run_once = os.getenv("RUN_ONCE", "").lower() in ("1", "true", "yes", "on")
-	require_media = os.getenv("REQUIRE_MEDIA", "1").lower() in ("1", "true", "yes", "on")
+	require_media = os.getenv("REQUIRE_MEDIA", "0").lower() in ("1", "true", "yes", "on")
 
 	try:
 		check_interval_min = int(os.getenv("CHECK_INTERVAL_MIN", "60"))
@@ -198,13 +198,18 @@ def main() -> None:
 			best_indices: list[int] = []
 			try:
 				best_indices = summarizer.select_best(candidate_view[:20]) or []
-			except Exception as _:
+				logger.info("AI selected %d best items: %s", len(best_indices), best_indices)
+			except Exception as exc:
+				logger.warning("AI selection failed: %s", exc)
 				best_indices = []
 			# Построить порядок обхода: сначала предложенные ИИ, затем остальные
 			seen_idx = set(int(i) for i in best_indices if isinstance(i, int) and 0 <= i < len(items))
 			ordered_indices = list(seen_idx) + [i for i in range(len(items)) if i not in seen_idx]
 
 			new_count = 0
+			processed_count = 0
+			skipped_reasons = {"duplicate_link": 0, "duplicate_title": 0, "no_media": 0, "ai_duplicate": 0}
+			
 			for idx in ordered_indices:
 				item = items[idx]
 				title = item.get("title") or ""
@@ -212,15 +217,22 @@ def main() -> None:
 				image_url = item.get("image_url") or None
 				all_media = item.get("all_media", [])
 				feed_or_meta_desc = item.get("description") or ""
+				processed_count += 1
+				
 				if not title or not link:
+					logger.debug("Skipping item %d: missing title or link", idx)
 					continue
 
 				if link in published_links:
+					skipped_reasons["duplicate_link"] += 1
+					logger.debug("Skipping item %d: already published - %s", idx, title[:50])
 					continue
 
 				# Early title-based dedupe on feed title
 				orig_title_key = title_key(title)
 				if orig_title_key and orig_title_key in recent_title_keys_set:
+					skipped_reasons["duplicate_title"] += 1
+					logger.debug("Skipping item %d: duplicate title - %s", idx, title[:50])
 					continue
 
 				ai_output = summarizer.summarize(title=title, url=link)
@@ -241,10 +253,14 @@ def main() -> None:
 				# Dedupe with AI title if it differs
 				ai_title_key = title_key(final_title)
 				if ai_title_key and ai_title_key in recent_title_keys_set:
+					skipped_reasons["ai_duplicate"] += 1
+					logger.debug("Skipping item %d: AI title duplicate - %s", idx, final_title[:50])
 					continue
 
 				# Skip news without images or videos (if required)
 				if require_media and not image_url:
+					skipped_reasons["no_media"] += 1
+					logger.debug("Skipping item %d: no media - %s", idx, final_title[:50])
 					continue
 
 				# Append CTA if present
@@ -274,8 +290,15 @@ def main() -> None:
 
 				time.sleep(post_delay_sec)
 
+			# Log detailed statistics
+			logger.info("Cycle complete: processed %d/%d items, posted %d, skipped: %s", 
+					   processed_count, len(items), new_count, skipped_reasons)
+			
 			if new_count == 0:
-				logger.info("No new items to post")
+				if processed_count == 0:
+					logger.info("No items to process")
+				else:
+					logger.info("No new items to post - all %d items were filtered out", processed_count)
 		except Exception as loop_exc:
 			logger.error("Loop error: %s", loop_exc)
 

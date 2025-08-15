@@ -41,11 +41,29 @@ class NewsFetcher:
 		seen_links: set[str] = set()
 		seen_titles: set[str] = set()
 		for feed_url in feed_list:
-			try:
-				resp = requests.get(feed_url, timeout=timeout_sec, headers=headers)
-				resp.raise_for_status()
-			except Exception as exc:
-				logger.error("Failed to fetch RSS '%s': %s", feed_url, exc)
+			success = False
+			for attempt in range(2):  # Try twice for RSS feeds
+				try:
+					resp = requests.get(feed_url, timeout=timeout_sec, headers=headers)
+					resp.raise_for_status()
+					success = True
+					break
+				except requests.exceptions.HTTPError as exc:
+					if exc.response.status_code in [403, 503, 429] and attempt == 0:
+						logger.info("RSS feed %s returned HTTP %s, retrying in 3s", feed_url, exc.response.status_code)
+						time.sleep(3)
+						continue
+					logger.error("Failed to fetch RSS '%s': HTTP %s", feed_url, exc.response.status_code)
+					break
+				except Exception as exc:
+					if attempt == 0:
+						logger.info("RSS feed error for %s, retrying: %s", feed_url, exc)
+						time.sleep(2)
+						continue
+					logger.error("Failed to fetch RSS '%s': %s", feed_url, exc)
+					break
+			
+			if not success:
 				continue
 
 			soup = BeautifulSoup(resp.text, "xml")
@@ -206,18 +224,36 @@ class NewsFetcher:
 			logger.info("Failed to resolve original URL: %s", exc)
 		return None
 
-	def _get_article_meta(self, page_url: str, timeout_sec: int = 10) -> Optional[Dict[str, Optional[str]]]:
-		try:
-			headers = {
-				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-				"Accept-Language": "en-US,en;q=0.9",
-			}
-			resp = requests.get(page_url, timeout=timeout_sec, headers=headers, allow_redirects=True)
-			resp.raise_for_status()
-		except Exception as exc:
-			logger.info("Could not fetch page for meta: %s", exc)
-			return None
+	def _get_article_meta(self, page_url: str, timeout_sec: int = 10, max_retries: int = 2) -> Optional[Dict[str, Optional[str]]]:
+		headers = {
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+			"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+			"Accept-Language": "en-US,en;q=0.9",
+			"Cache-Control": "no-cache",
+			"Pragma": "no-cache"
+		}
+		
+		for attempt in range(max_retries + 1):
+			try:
+				resp = requests.get(page_url, timeout=timeout_sec, headers=headers, allow_redirects=True)
+				resp.raise_for_status()
+				break
+			except requests.exceptions.HTTPError as exc:
+				if exc.response.status_code in [403, 503, 429]:  # Common blocking/rate limit errors
+					if attempt < max_retries:
+						logger.info("HTTP %s for %s, retrying in %ds (attempt %d/%d)", 
+								   exc.response.status_code, page_url, (attempt + 1) * 2, attempt + 1, max_retries + 1)
+						time.sleep((attempt + 1) * 2)  # Exponential backoff
+						continue
+				logger.info("Could not fetch page for meta (HTTP %s): %s", exc.response.status_code, page_url)
+				return None
+			except Exception as exc:
+				if attempt < max_retries:
+					logger.info("Error fetching %s, retrying (attempt %d/%d): %s", page_url, attempt + 1, max_retries + 1, exc)
+					time.sleep((attempt + 1))
+					continue
+				logger.info("Could not fetch page for meta after %d attempts: %s", max_retries + 1, exc)
+				return None
 
 		image = None
 		all_media = []
