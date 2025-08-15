@@ -183,6 +183,9 @@ def main() -> None:
 	recent_title_keys = load_recent_titles()
 	recent_title_keys_set = set(recent_title_keys)
 	mode = "RSS_FEEDS"
+	# Debug flags
+	debug_dump_rss = os.getenv("DEBUG_DUMP_RSS", "0").lower() in ("1","true","yes","on")
+	debug_dir = DATA_DIR / "debug"
 	logger.info(
 		"Starting bot. Mode=%s, Feeds=%d, Interval=%s min, Delay=%s sec, Published=%d",
 		mode,
@@ -196,6 +199,17 @@ def main() -> None:
 		try:
 			items = fetcher.fetch(max_items=20)
 			logger.info("Fetched %d items", len(items))
+
+			# Optional: dump fetched items to debug file
+			if debug_dump_rss:
+				try:
+					debug_dir.mkdir(parents=True, exist_ok=True)
+					import json as _json, datetime as _dt
+					ts = _dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+					(debug_dir / f"rss_{ts}.json").write_text(_json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+					logger.info("Saved RSS dump: %s", str(debug_dir / f"rss_{ts}.json"))
+				except Exception as _:
+					logger.info("Failed to save RSS dump")
 
 			# Позволяем ИИ выбрать самые интересные элементы (по заголовкам/ссылкам)
 			candidate_view = [{"title": (it.get("title") or ""), "link": (it.get("link") or "")} for it in items]

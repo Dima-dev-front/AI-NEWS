@@ -41,6 +41,9 @@ class Summarizer:
     def summarize(self, title: str, url: str) -> str:
         if self.disabled or not self.client:
             return ""
+        debug_log_ai = os.getenv("DEBUG_LOG_AI", "0").lower() in ("1","true","yes","on")
+        debug_save_ai = os.getenv("DEBUG_SAVE_AI", "0").lower() in ("1","true","yes","on")
+        debug_dir = os.path.join("data", "debug")
         prompt = (
             "Ти — україномовний редактор новин. Поверни СТРОГО JSON без пояснень з ключами 'title', 'summary', опційним 'cta_url'. "
             "'title' — до 90 символів, лаконічний. "
@@ -52,6 +55,8 @@ class Summarizer:
         )
         try:
             logger.info(f"Summarize using model: {self.model_name}")
+            if debug_log_ai:
+                logger.info("AI summarize prompt: title=%s url=%s", title, url)
             completion = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
@@ -62,6 +67,16 @@ class Summarizer:
                 max_tokens=360,
             )
             text = completion.choices[0].message.content.strip()
+            if debug_save_ai:
+                try:
+                    import json as _json, datetime as _dt, os as _os
+                    _os.makedirs(debug_dir, exist_ok=True)
+                    ts = _dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                    (_os.path.join(debug_dir, f"ai_summarize_{ts}.json"))
+                    with open(_os.path.join(debug_dir, f"ai_summarize_{ts}.json"), "w", encoding="utf-8") as f:
+                        _json.dump({"title": title, "url": url, "prompt": prompt, "output": text}, f, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
             return text
         except Exception as exc:
             logger.error("%s summarize failed: %s", self.provider.upper(), exc)
@@ -74,6 +89,9 @@ class Summarizer:
         """
         if self.disabled or not self.client or not items:
             return []
+        debug_log_ai = os.getenv("DEBUG_LOG_AI", "0").lower() in ("1","true","yes","on")
+        debug_save_ai = os.getenv("DEBUG_SAVE_AI", "0").lower() in ("1","true","yes","on")
+        debug_dir = os.path.join("data", "debug")
         # Prepare compact numbered list to keep tokens low
         lines = []
         for idx, it in enumerate(items[:20]):
@@ -98,6 +116,8 @@ class Summarizer:
         )
         try:
             logger.info(f"Select_best using model: {self.model_name}")
+            if debug_log_ai:
+                logger.info("AI select_best items: %d", len(items))
             completion = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
@@ -108,6 +128,15 @@ class Summarizer:
                 max_tokens=200,
             )
             text = completion.choices[0].message.content.strip()
+            if debug_save_ai:
+                try:
+                    import json as _json, datetime as _dt, os as _os
+                    _os.makedirs(debug_dir, exist_ok=True)
+                    ts = _dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                    with open(_os.path.join(debug_dir, f"ai_select_{ts}.json"), "w", encoding="utf-8") as f:
+                        _json.dump({"items": items, "prompt": prompt, "output": text}, f, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
             import json as _json
             try:
                 obj = _json.loads(text)
