@@ -318,8 +318,13 @@ def main() -> None:
 					message_plain = format_message_plain(title=final_title, summary=summary, source_url=link)
 					try:
 						send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, media=media)
+						# Mark as published to avoid duplicates in subsequent iterations
 						published_links.add(link)
 						save_published(published_links)
+						# Update recent titles
+						recent_title_keys.append(title_key(title))
+						recent_title_keys_set = set(recent_title_keys)
+						save_recent_titles(recent_title_keys, max_size=recent_titles_max)
 						new_count = 1
 						logger.info("Posted (fallback): %s", final_title)
 						break
@@ -356,6 +361,13 @@ def main() -> None:
 						message_plain = format_message_plain(title=final_title, summary=summary, source_url=link)
 						try:
 							send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, media=media)
+							# Mark as published to avoid duplicates in subsequent iterations
+							published_links.add(link)
+							save_published(published_links)
+							# Update recent titles
+							recent_title_keys.append(title_key(title))
+							recent_title_keys_set = set(recent_title_keys)
+							save_recent_titles(recent_title_keys, max_size=recent_titles_max)
 							new_count = 1
 							logger.info("Posted (fallback-repost): %s", final_title)
 							break
