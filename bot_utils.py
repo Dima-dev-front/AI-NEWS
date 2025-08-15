@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Optional
 from urllib.parse import quote
 
@@ -151,7 +152,7 @@ def escape_html(text: str) -> str:
 	)
 
 
-def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url: Optional[str] = None, message_plain: Optional[str] = None, all_media: Optional[list] = None) -> None:
+def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url: Optional[str] = None, message_plain: Optional[str] = None, all_media: Optional[list] = None, fallback_image_url: Optional[str] = None) -> None:
 	base_url = f"https://api.telegram.org/bot{bot_token}"
 	
 	# Select best media: prioritize videos over images
@@ -174,8 +175,8 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 						best_media_url = media_url
 						break
 	
-	# Use best_media_url if found, otherwise fallback to image_url
-	final_media_url = best_media_url or image_url
+	# Use best_media_url if found, otherwise fallback to image_url, then to fallback_image_url
+	final_media_url = best_media_url or image_url or fallback_image_url
 
 	# Send media with caption if available
 	if final_media_url:
@@ -186,12 +187,43 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 		# Determine if it's a video or photo
 		lower_url = final_media_url.lower()
 		is_video = any(ext in lower_url for ext in ['.mp4', '.mov', '.avi', '.webm', '.mkv'])
+		is_local_file = not final_media_url.startswith('http')
 		
+		# Check if caption contains CTA links and disable preview
+		disable_preview = "Спробувати:" in caption or "Попробовать:" in caption or "Try:" in caption
+		
+		if is_local_file and os.path.exists(final_media_url):
+			# Send local file
+			try:
+				with open(final_media_url, 'rb') as file:
+					files = {'photo': file} if not is_video else {'video': file}
+					data = {
+						"chat_id": chat_id,
+						"caption": caption,
+						"parse_mode": "HTML",
+					}
+					if disable_preview:
+						data["disable_web_page_preview"] = True
+					
+					endpoint = "sendPhoto" if not is_video else "sendVideo"
+					resp = requests.post(f"{base_url}/{endpoint}", data=data, files=files, timeout=30)
+					resp.raise_for_status()
+					media_type = "photo" if not is_video else "video"
+					logger.info("Sent local %s with caption to Telegram.", media_type)
+					return
+			except Exception as exc:
+				logger.error("Failed to send local file %s: %s", final_media_url, exc)
+				# Fall through to URL method or text-only
+		
+		# Send URL-based media
 		media_payload = {
 			"chat_id": chat_id,
 			"caption": caption,
 			"parse_mode": "HTML",
 		}
+		
+		if disable_preview:
+			media_payload["disable_web_page_preview"] = True
 		
 		if is_video:
 			media_payload["video"] = final_media_url
@@ -219,11 +251,14 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 			# Fall through to text-only
 
 	# Text-only message
+	# Check if message contains CTA links and disable preview for them
+	disable_preview = "Спробувати:" in message_html or "Попробовать:" in message_html or "Try:" in message_html
+	
 	payload_html = {
 		"chat_id": chat_id,
 		"text": message_html,
 		"parse_mode": "HTML",
-		"disable_web_page_preview": False,
+		"disable_web_page_preview": disable_preview,
 	}
 	try:
 		resp = requests.post(f"{base_url}/sendMessage", data=payload_html, timeout=15)

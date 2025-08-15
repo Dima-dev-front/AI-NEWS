@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="600" fill="url(#bgGradient)"/>
+  
+  <!-- Neural network nodes -->
+  <circle cx="200" cy="150" r="15" fill="url(#nodeGradient)"/>
+  <circle cx="350" cy="100" r="12" fill="url(#nodeGradient)"/>
+  <circle cx="500" cy="180" r="18" fill="url(#nodeGradient)"/>
+  <circle cx="650" cy="120" r="14" fill="url(#nodeGradient)"/>
+  
+  <circle cx="150" cy="300" r="16" fill="url(#nodeGradient)"/>
+  <circle cx="300" cy="280" r="13" fill="url(#nodeGradient)"/>
+  <circle cx="450" cy="320" r="17" fill="url(#nodeGradient)"/>
+  <circle cx="600" cy="290" r="15" fill="url(#nodeGradient)"/>
+  
+  <circle cx="180" cy="450" r="14" fill="url(#nodeGradient)"/>
+  <circle cx="380" cy="420" r="16" fill="url(#nodeGradient)"/>
+  <circle cx="580" cy="460" r="13" fill="url(#nodeGradient)"/>
+  
+  <!-- Connections -->
+  <line x1="200" y1="150" x2="350" y2="100" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  <line x1="350" y1="100" x2="500" y2="180" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  <line x1="200" y1="150" x2="150" y2="300" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  <line x1="350" y1="100" x2="300" y2="280" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  <line x1="500" y1="180" x2="450" y2="320" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  <line x1="150" y1="300" x2="300" y2="280" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  <line x1="300" y1="280" x2="450" y2="320" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  <line x1="450" y1="320" x2="600" y2="290" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  <line x1="180" y1="450" x2="380" y2="420" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  <line x1="380" y1="420" x2="580" y2="460" stroke="#4f46e5" stroke-width="2" opacity="0.6"/>
+  
+  <!-- AI Text -->
+  <text x="400" y="320" text-anchor="middle" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#4f46e5">AI</text>
+  <text x="400" y="360" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#7c3aed">NEWS</text>
+</svg>

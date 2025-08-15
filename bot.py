@@ -140,7 +140,7 @@ def main() -> None:
 	chat_id = os.getenv("CHAT_ID", "")
 	query = os.getenv("NEWS_QUERY", "Украина")
 	model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
-	fallback_image_url = os.getenv("FALLBACK_IMAGE_URL", None)
+	fallback_image_url = os.getenv("FALLBACK_IMAGE_URL", "assets/ai-fallback.png")
 	locale = os.getenv("LOCALE", "ru")
 	country = os.getenv("COUNTRY", "RU")
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
@@ -271,7 +271,7 @@ def main() -> None:
 				message_plain = format_message_plain(title=final_title, summary=summary, source_url=link)
 
 				try:
-					send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, all_media=all_media)
+					send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, all_media=all_media, fallback_image_url=fallback_image_url)
 					published_links.add(link)
 					save_published(published_links)
 					# Update recent titles store
