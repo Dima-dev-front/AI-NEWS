@@ -4,6 +4,7 @@ from typing import Optional, List, Dict
 from urllib.parse import quote, urlparse, parse_qs, urlencode, urlunparse
 
 import requests
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -273,3 +274,22 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 	except Exception as exc:
 		logger.error("Telegram send failed: %s", exc)
 		raise
+
+
+def build_screenshot_url(page_url: str, provider: str = None, width: int = None) -> Optional[str]:
+	"""Return a screenshot image URL for the given page using a simple provider.
+
+	Providers:
+	- mshots (default): https://s.wordpress.com/mshots/v1/<url>?w=<width>
+	- thumio: https://image.thum.io/get/width/<width>/<url>
+	"""
+	try:
+		provider = (provider or os.getenv("SCREENSHOT_PROVIDER", "mshots")).strip().lower()
+		width = int(os.getenv("SCREENSHOT_WIDTH", str(width or 1200)))
+		enc = quote(page_url, safe="")
+		if provider == "thumio":
+			return f"https://image.thum.io/get/width/{width}/{enc}"
+		# default mshots
+		return f"https://s.wordpress.com/mshots/v1/{enc}?w={width}"
+	except Exception:
+		return None

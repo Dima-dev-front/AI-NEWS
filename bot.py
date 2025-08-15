@@ -12,6 +12,7 @@ from news import NewsFetcher
 from summarizer import Summarizer
 from bot_utils import format_message_html, send_to_telegram, format_message_plain
 from image_gen import ImageGenerator
+from bot_utils import build_screenshot_url
 
 
 logging.basicConfig(
@@ -245,18 +246,20 @@ def main() -> None:
 				if ai_title_key and ai_title_key in recent_title_keys_set:
 					continue
 
-				# Skip news without images or videos (if required)
-				if require_media and not (image_url or (media and len(media) > 0)):
-					# try to generate AI image
-					ai_image_bytes = None
+				# If media required but none available, attempt AI image generation
+				ai_image_bytes = None
+				if not (image_url or (media and len(media) > 0)):
 					try:
 						ai_image_bytes = image_gen.generate_image_bytes(title=final_title, summary=summary, locale=locale)
 					except Exception:
 						ai_image_bytes = None
+					# If AI image not available, build a screenshot URL of the source page
 					if not ai_image_bytes:
+						screenshot_url = build_screenshot_url(link)
+						if screenshot_url:
+							image_url = screenshot_url
+					if require_media and not (ai_image_bytes or image_url or (media and len(media) > 0)):
 						continue
-				else:
-					ai_image_bytes = None
 
 				# Append CTA if present
 				if cta_url:
