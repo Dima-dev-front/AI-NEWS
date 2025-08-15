@@ -93,5 +93,7 @@
   "judge criticises lawyers acting for boy accused of murder for filing misleading aicreated documents",
   "суддя критикує адвокатів хлопця обвинуваченого у вбивстві за фальшиві документи",
   "building a decoderonly transformer model for text generation",
-  "створення трансформера лише з декодером для генерації тексту"
+  "створення трансформера лише з декодером для генерації тексту",
+  "building a transformer model for language translation",
+  "створення трансформерної моделі для перекладу мов"
 ]
