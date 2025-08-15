@@ -2,7 +2,7 @@ name: ai-news-cron
 
 on:
   schedule:
-    - cron: "*/15 * * * *"  # каждые 15 минут
+    - cron: "0 */2 * * *"  # каждые 2 часа
   workflow_dispatch: {}
 
 permissions:
@@ -71,7 +71,7 @@ jobs:
           MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
           DISABLE_OPENAI=${DISABLE_OPENAI:-0}
           RSS_FEEDS=${RSS_FEEDS}
-          CHECK_INTERVAL_MIN=15
+          CHECK_INTERVAL_MIN=120
           MAX_POSTS_PER_CYCLE=1
           POST_DELAY_SEC=2
           RECENT_TITLES_MAX=300
