@@ -75,7 +75,7 @@ def escape_html(text: str) -> str:
 	)
 
 
-def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url: Optional[str] = None, message_plain: Optional[str] = None, media: Optional[List[Dict]] = None) -> None:
+def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url: Optional[str] = None, message_plain: Optional[str] = None, media: Optional[List[Dict]] = None, image_bytes: Optional[bytes] = None) -> None:
 	base_url = f"https://api.telegram.org/bot{bot_token}"
 
 	# If media group provided, try to send as album (up to 10 items)
@@ -134,6 +134,22 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 			return
 		except Exception as exc:
 			logger.error("Telegram sendPhoto failed: %s", exc)
+			# Fall through to text-only
+
+	# If we have raw image bytes (AI generated), upload via multipart
+	if image_bytes:
+		try:
+			caption = message_html
+			if len(caption) > 1024:
+				caption = caption[:1024]
+			files = {"photo": ("image.png", image_bytes, "image/png")}
+			data = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
+			resp = requests.post(f"{base_url}/sendPhoto", data=data, files=files, timeout=20)
+			resp.raise_for_status()
+			logger.info("Sent generated image with caption to Telegram.")
+			return
+		except Exception as exc:
+			logger.error("Telegram sendPhoto(bytes) failed: %s", exc)
 			# Fall through to text-only
 
 	# Text-only message
