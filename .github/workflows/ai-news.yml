@@ -72,7 +72,7 @@ jobs:
           LLM_PROVIDER=${LLM_PROVIDER:-openai}
           MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
           DISABLE_OPENAI=${DISABLE_OPENAI:-0}
-          RSS_FEEDS=${RSS_FEEDS}
+          RSS_FEEDS=https://rss.app/feeds/tBacqAO7nwc9955e.xml,https://rss.app/feeds/tCVyVdPuVCDk9q1g.xml,https://rss.app/feeds/t3Zepjf0zL45Wymq.xml,https://rss.app/feeds/tcVZxUeFsrhJxAy9.xml,https://rss.app/feeds/d4AdR88X6aY1A4W4.xml
           CHECK_INTERVAL_MIN=30
           MAX_POSTS_PER_CYCLE=1
           POST_DELAY_SEC=2
