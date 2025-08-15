@@ -54,21 +54,9 @@ class NewsFetcher:
 				path = path.replace("/default.jpg", "/maxresdefault.jpg")
 				path = path.replace("/hqdefault.jpg", "/maxresdefault.jpg")
 
-			# Cloudinary: replace transformations with width limit
+			# Cloudinary: only replace existing transformation block; do not inject new one (may break signatures)
 			if "/upload/" in path and ("res.cloudinary.com" in host or "cloudinary" in host):
 				path = _re.sub(r"/upload/[^/]+/", "/upload/c_limit,w_1600/", path)
-				path = path.replace("/upload/", "/upload/c_limit,w_1600/")
-
-			# Generic width/height query params
-			for k in ("w","width","h","height","sz","s"):
-				if k in query:
-					try:
-						query[k] = ["1600"]
-					except Exception:
-						pass
-
-			# Google-style '=w120-h120' at the end (rare in direct URLs)
-			path = _re.sub(r"=w\d{2,4}-h\d{2,4}", "=w1600-h1600", path)
 
 			new_query = urlencode({k: v[0] if isinstance(v, list) and v else v for k, v in query.items()}, doseq=False)
 			return urlunparse(parsed._replace(path=path, query=new_query))
