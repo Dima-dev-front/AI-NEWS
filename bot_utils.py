@@ -108,6 +108,23 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 			except Exception as exc:
 				logger.error("Telegram sendMediaGroup failed: %s", exc)
 				# fall back to single
+		elif group and len(group) == 1 and not image_url:
+			one = group[0]
+			try:
+				cap = message_html
+				if len(cap) > 1024:
+					cap = cap[:1024]
+				if one.get("type") == "photo":
+					payload = {"chat_id": chat_id, "photo": one.get("media"), "caption": cap, "parse_mode": "HTML"}
+					resp = requests.post(f"{base_url}/sendPhoto", data=payload, timeout=15)
+					resp.raise_for_status(); return
+				elif one.get("type") == "video":
+					payload = {"chat_id": chat_id, "video": one.get("media"), "caption": cap, "parse_mode": "HTML"}
+					resp = requests.post(f"{base_url}/sendVideo", data=payload, timeout=20)
+					resp.raise_for_status(); return
+			except Exception as exc:
+				logger.error("Telegram send single media failed: %s", exc)
+
 	# Prefer sending photo with HTML caption when image is available
 	if image_url:
 		caption = message_html
