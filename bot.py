@@ -140,7 +140,7 @@ def main() -> None:
 	chat_id = os.getenv("CHAT_ID", "")
 	query = os.getenv("NEWS_QUERY", "Украина")
 	model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
-	fallback_image_url = os.getenv("FALLBACK_IMAGE_URL", "assets/ai-fallback.png")
+	fallback_image_url = os.getenv("FALLBACK_IMAGE_URL", "assets/770c3a4a-23f1-4f33-ad71-c1f0672e6d26.png")
 	locale = os.getenv("LOCALE", "ru")
 	country = os.getenv("COUNTRY", "RU")
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
