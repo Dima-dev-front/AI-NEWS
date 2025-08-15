@@ -4,7 +4,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Set, Tuple, Optional
+from typing import Set, Tuple, Optional, Dict, List
 
 from dotenv import load_dotenv
 
@@ -77,6 +77,103 @@ def parse_feed_urls(env_value: str) -> list:
 	return [u.strip() for u in env_value.split(",") if u.strip()]
 
 
+def categorize_rss_feeds(feed_urls: List[str]) -> Dict[str, List[str]]:
+	"""Categorize RSS feeds by topic."""
+	categories = {
+		"AI_ML": [],
+		"SPACE_NASA": [],
+		"TECH_ENGINEERING": [],
+		"SCIENCE": [],
+		"AUTO_EV": [],
+		"DEFENSE": [],
+		"BIOTECH_MEDICINE": [],
+		"GITHUB": [],
+	}
+	
+	# Категоризация по доменам и путям
+	for url in feed_urls:
+		url_lower = url.lower()
+		
+		# AI и машинное обучение
+		if any(keyword in url_lower for keyword in [
+			"ai", "artificial-intelligence", "machinelearning", "deepmind", 
+			"thegradient", "towardsdatascience", "marktechpost", "analyticsvidhya"
+		]):
+			categories["AI_ML"].append(url)
+		
+		# Космос и NASA
+		elif any(keyword in url_lower for keyword in [
+			"nasa.gov", "jpl.nasa", "space.com", "spacenews"
+		]):
+			categories["SPACE_NASA"].append(url)
+		
+		# Автомобили и электромобили
+		elif any(keyword in url_lower for keyword in [
+			"electrek", "insideevs", "motortrend", "caranddriver", "autoblog"
+		]):
+			categories["AUTO_EV"].append(url)
+		
+		# Оборона и военная техника
+		elif any(keyword in url_lower for keyword in [
+			"defensenews", "breakingdefense", "military.com", "c4isrnet"
+		]):
+			categories["DEFENSE"].append(url)
+		
+		# Биотехнологии и медицина
+		elif any(keyword in url_lower for keyword in [
+			"statnews", "fiercebiotech", "biotech", "medical"
+		]):
+			categories["BIOTECH_MEDICINE"].append(url)
+		
+		# GitHub релизы
+		elif "github.com" in url_lower and "releases" in url_lower:
+			categories["GITHUB"].append(url)
+		
+		# Технологии и инженерия
+		elif any(keyword in url_lower for keyword in [
+			"spectrum.ieee", "engadget", "arstechnica", "wired", "technologyreview", 
+			"techcrunch", "venturebeat", "popularmechanics"
+		]):
+			categories["TECH_ENGINEERING"].append(url)
+		
+		# Наука
+		elif any(keyword in url_lower for keyword in [
+			"sciencedaily", "sciencenews", "newscientist"
+		]):
+			categories["SCIENCE"].append(url)
+		
+		# По умолчанию - технологии
+		else:
+			categories["TECH_ENGINEERING"].append(url)
+	
+	# Удаляем пустые категории
+	return {k: v for k, v in categories.items() if v}
+
+
+def get_next_category_feeds(categories: Dict[str, List[str]], last_category: Optional[str] = None) -> Tuple[str, List[str]]:
+	"""Get feeds from next category in rotation."""
+	if not categories:
+		return "TECH_ENGINEERING", []
+	
+	category_order = ["AI_ML", "SPACE_NASA", "SCIENCE", "TECH_ENGINEERING", "AUTO_EV", "DEFENSE", "BIOTECH_MEDICINE", "GITHUB"]
+	available_categories = [cat for cat in category_order if cat in categories]
+	
+	if not available_categories:
+		return list(categories.keys())[0], list(categories.values())[0]
+	
+	if last_category is None or last_category not in available_categories:
+		return available_categories[0], categories[available_categories[0]]
+	
+	# Найти следующую категорию
+	try:
+		current_idx = available_categories.index(last_category)
+		next_idx = (current_idx + 1) % len(available_categories)
+		next_category = available_categories[next_idx]
+		return next_category, categories[next_category]
+	except ValueError:
+		return available_categories[0], categories[available_categories[0]]
+
+
 def parse_ai_json(output: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
 	if not output:
 		return None, None, None, None
@@ -128,6 +225,31 @@ def save_recent_titles(keys: list, max_size: int) -> None:
 	RECENT_TITLES_PATH.write_text(json.dumps(trimmed, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def load_last_category() -> Optional[str]:
+	"""Load last used category from data/last_category.json."""
+	path = Path("data/last_category.json")
+	if path.exists():
+		try:
+			with path.open("r", encoding="utf-8") as f:
+				data = json.load(f)
+				return data.get("last_category")
+		except Exception as exc:
+			logger.warning("Failed to load last category: %s", exc)
+	return None
+
+
+def save_last_category(category: str) -> None:
+	"""Save last used category to data/last_category.json."""
+	Path("data").mkdir(exist_ok=True)
+	path = Path("data/last_category.json")
+	try:
+		with path.open("w", encoding="utf-8") as f:
+			json.dump({"last_category": category}, f, ensure_ascii=False, indent=2)
+		logger.debug("Saved last category: %s", category)
+	except Exception as exc:
+		logger.warning("Failed to save last category: %s", exc)
+
+
 def title_key(title: str) -> str:
 	s = (title or "").lower().strip()
 	reduced = []
@@ -177,45 +299,56 @@ def main() -> None:
 		logger.error("RSS_FEEDS must be set (Google News is disabled)")
 		sys.exit(1)
 
+	# Категоризация RSS-фидов
+	feed_categories = categorize_rss_feeds(rss_feeds)
+	last_category = load_last_category()
+	
 	fetcher = NewsFetcher(query=query, locale=locale, country=country, fallback_image_url=fallback_image_url, feed_urls=rss_feeds)
 	summarizer = Summarizer(model_name=model_name)
 
 	published_links = load_published()
 	recent_title_keys = load_recent_titles()
 	recent_title_keys_set = set(recent_title_keys)
-	mode = "RSS_FEEDS"
+	mode = "RSS_FEEDS_ROTATION"
+	
+	category_names = {
+		"AI_ML": "ИИ/МЛ", 
+		"SPACE_NASA": "Космос", 
+		"SCIENCE": "Наука", 
+		"TECH_ENGINEERING": "Технологии", 
+		"AUTO_EV": "Авто/ЭМ", 
+		"DEFENSE": "Оборона", 
+		"BIOTECH_MEDICINE": "Биомед", 
+		"GITHUB": "GitHub"
+	}
+	
 	logger.info(
-		"Starting bot. Mode=%s, Feeds=%d, Interval=%s min, Delay=%s sec, Published=%d",
+		"Starting bot. Mode=%s, Total_Feeds=%d, Categories=%s, Last_Category=%s, Interval=%s min, Published=%d",
 		mode,
 		len(rss_feeds),
+		"/".join([f"{category_names.get(k, k)}({len(v)})" for k, v in feed_categories.items()]),
+		category_names.get(last_category, last_category),
 		check_interval_min,
-		post_delay_sec,
 		len(published_links),
 	)
 
 	while True:
 		try:
-			items = fetcher.fetch(max_items=20)
-			logger.info("Fetched %d items", len(items))
+			# Получить следующую категорию для обработки
+			current_category, category_feeds = get_next_category_feeds(feed_categories, last_category)
+			logger.info("Processing category: %s (%d feeds)", category_names.get(current_category, current_category), len(category_feeds))
+			
+			# Создаем временный fetcher только для текущей категории
+			category_fetcher = NewsFetcher(query=query, locale=locale, country=country, fallback_image_url=fallback_image_url, feed_urls=category_feeds)
+			items = category_fetcher.fetch(max_items=20)
+			logger.info("Fetched %d items from %s category", len(items), category_names.get(current_category, current_category))
 
-			# Позволяем ИИ выбрать самые интересные элементы (по заголовкам/ссылкам)
-			candidate_view = [{"title": (it.get("title") or ""), "link": (it.get("link") or "")} for it in items]
-			best_indices: list[int] = []
-			try:
-				best_indices = summarizer.select_best(candidate_view[:20]) or []
-				logger.info("AI selected %d best items: %s", len(best_indices), best_indices)
-			except Exception as exc:
-				logger.warning("AI selection failed: %s", exc)
-				best_indices = []
-			# Построить порядок обхода: сначала предложенные ИИ, затем остальные
-			seen_idx = set(int(i) for i in best_indices if isinstance(i, int) and 0 <= i < len(items))
-			ordered_indices = list(seen_idx) + [i for i in range(len(items)) if i not in seen_idx]
-
+			# Обрабатываем новости последовательно (без AI выбора)
 			new_count = 0
 			processed_count = 0
 			skipped_reasons = {"duplicate_link": 0, "duplicate_title": 0, "no_media": 0, "ai_duplicate": 0}
 			
-			for idx in ordered_indices:
+			for idx in range(len(items)):
 				item = items[idx]
 				title = item.get("title") or ""
 				link = item.get("link") or ""
@@ -312,13 +445,17 @@ def main() -> None:
 			logger.info("Cycle complete: processed %d/%d items, posted %d, skipped: %s", 
 					   processed_count, len(items), new_count, skipped_reasons)
 			
+			# Сохранить текущую категорию для следующей итерации
+			save_last_category(current_category)
+			last_category = current_category
+			
 			if new_count == 0:
 				if processed_count == 0:
-					logger.info("No items to process")
+					logger.info("No items to process from %s category", category_names.get(current_category, current_category))
 				else:
-					logger.info("No new items to post - all %d items were filtered out", processed_count)
+					logger.info("No new items to post from %s - all %d items were filtered out", category_names.get(current_category, current_category), processed_count)
 		except Exception as loop_exc:
-			logger.error("Loop error: %s", loop_exc)
+			logger.error("Loop error in %s category: %s", category_names.get(current_category, current_category), loop_exc)
 
 		# Exit immediately in one-shot mode
 		if run_once:
