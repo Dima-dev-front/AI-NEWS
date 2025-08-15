@@ -2,7 +2,7 @@ name: ai-news-cron
 
 on:
   schedule:
-    - cron: "0 */2 * * *"  # каждые 2 часа
+    - cron: "0 */1 * * *"  # каждый час
   workflow_dispatch: {}
 
 permissions:
@@ -71,7 +71,7 @@ jobs:
           MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
           DISABLE_OPENAI=${DISABLE_OPENAI:-0}
           RSS_FEEDS=${RSS_FEEDS}
-          CHECK_INTERVAL_MIN=120
+          CHECK_INTERVAL_MIN=60
           MAX_POSTS_PER_CYCLE=1
           POST_DELAY_SEC=2
           RECENT_TITLES_MAX=300
@@ -81,10 +81,10 @@ jobs:
           echo "Created .env file, checking contents:"
           head -3 .env | sed 's/=.*$/=***/' || echo "Failed to read .env"
 
-      - name: Run bot every 2 minutes (5 iterations)
+      - name: Run bot once per hour (1 iteration)
         env:
-          ITERATIONS: 5
-          SLEEP_SEC: 120
+          ITERATIONS: 1
+          SLEEP_SEC: 0
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
