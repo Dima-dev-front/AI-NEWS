@@ -148,7 +148,8 @@ def main() -> None:
 	run_once = os.getenv("RUN_ONCE", "").lower() in ("1", "true", "yes", "on")
 	require_media = os.getenv("REQUIRE_MEDIA", "1").lower() in ("1", "true", "yes", "on")
 	placeholder_image_url = os.getenv("PLACEHOLDER_IMAGE_URL", "https://placehold.co/1200x675/png?text=AI+NEWS")
-	allow_repost_fallback = os.getenv("ALLOW_REPOST_FALLBACK", "1").lower() in ("1","true","yes","on")
+	# Disable repost fallback by default to avoid duplicates
+	allow_repost_fallback = os.getenv("ALLOW_REPOST_FALLBACK", "0").lower() in ("1","true","yes","on")
 
 	try:
 		check_interval_min = int(os.getenv("CHECK_INTERVAL_MIN", "60"))
@@ -337,6 +338,9 @@ def main() -> None:
 						link = item.get("link") or ""
 						if not title or not link:
 							continue
+						# Skip if title recently used
+						if title_key(title) in recent_title_keys_set:
+							continue
 						image_url = item.get("image_url") or None
 						media = item.get("media") or None
 						feed_or_meta_desc = item.get("description") or ""
@@ -358,6 +362,9 @@ def main() -> None:
 						if cta_url:
 							summary = f"{summary}\n\nСпробувати: {cta_url}"
 						message_html = format_message_html(title=final_title, summary=summary, source_url=link)
+						# Ensure caption within 1024 will still include some summary
+						if len(message_html) > 1024:
+							message_html = (message_html[:1024]).rstrip()
 						message_plain = format_message_plain(title=final_title, summary=summary, source_url=link)
 						try:
 							send_to_telegram(bot_token=bot_token, chat_id=chat_id, message_html=message_html, image_url=image_url, message_plain=message_plain, media=media)
