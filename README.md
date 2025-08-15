@@ -72,21 +72,27 @@ docker run --name ai-news --env-file .env --restart unless-stopped ai-news-bot
 Для получения качественных новостей по ИИ, технологиям и науке используйте этот список:
 
 ```
-https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/feed/,https://deepmind.google/blog/rss.xml,https://thegradient.pub/feed/,https://towardsdatascience.com/feed/,https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml,https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml,https://www.theguardian.com/technology/artificialintelligenceai/rss,https://techcrunch.com/category/artificial-intelligence/feed/,https://venturebeat.com/category/ai/feed/,https://www.marktechpost.com/feed/,https://www.analyticsvidhya.com/feed/,https://www.nasa.gov/news-release/feed/,https://www.nasa.gov/feeds/iotd-feed/,https://www.jpl.nasa.gov/feeds/news/,https://spacenews.com/feed/,https://www.sciencenews.org/feed,https://www.newscientist.com/section/news/feed/,https://www.sciencedaily.com/rss/all.xml,https://www.space.com/feeds/all
+https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/feed/,https://deepmind.google/blog/rss.xml,https://thegradient.pub/feed/,https://towardsdatascience.com/feed/,https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml,https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml,https://www.theguardian.com/technology/artificialintelligenceai/rss,https://techcrunch.com/category/artificial-intelligence/feed/,https://venturebeat.com/category/ai/feed/,https://www.marktechpost.com/feed/,https://www.analyticsvidhya.com/feed/,https://www.nasa.gov/news-release/feed/,https://www.nasa.gov/feeds/iotd-feed/,https://www.jpl.nasa.gov/feeds/news/,https://www.sciencenews.org/feed,https://www.newscientist.com/section/news/feed/,https://www.sciencedaily.com/rss/all.xml,https://www.space.com/feeds/all
 ```
 
 **Источники включают:**
-- 🤖 **ИИ и машинное обучение**: Wired AI, MIT Tech Review, DeepMind, AI Trends
+- 🤖 **ИИ и машинное обучение**: Wired AI, MIT Tech Review, DeepMind, The Gradient
 - 🔬 **Научные публикации**: Science Daily, Science News, New Scientist
-- 🚀 **Космос и NASA**: NASA News, JPL, Space News, Space.com
+- 🚀 **Космос и NASA**: NASA News, NASA Image of the Day, JPL News, Space.com
 - 💻 **Технологические медиа**: TechCrunch, VentureBeat, The Guardian Tech
-- 📚 **Образовательные ресурсы**: Towards Data Science, Analytics Vidhya
+- 📚 **Образовательные ресурсы**: Towards Data Science, Analytics Vidhya, MarkTechPost
 
 **Логика работы:**
 1. Бот проходит по всем RSS-фидам в указанном порядке
 2. Из каждого фида берет до 3-5 новостей (настраивается)
 3. ИИ выбирает 1 лучшую новость из всех собранных
 4. Публикует выбранную новость в Telegram
+
+**⚠️ Исключенные источники:**
+- `aitrends.com` - HTTP 503 ошибки
+- `machinelearningmastery.com` - HTTP 403 блокировка
+- `aiwire.net` - HTTP 403 блокировка  
+- `spacenews.com` - HTTP 429 rate limiting
 
 ### ⚙️ Переменные окружения
 
