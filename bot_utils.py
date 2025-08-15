@@ -45,10 +45,14 @@ def format_summary_with_structure(summary: str, html: bool = True) -> str:
 					'хоча', 'втім', 'до речі', 'цікаво', 'схоже', 'мабуть', 'очевидно', 
 					'зрештою', 'принаймні', 'однак', 'проте', 'але ж', 'звісно',
 					'не варто', 'краще', 'гірше', 'дивно', 'чудово', 'жахливо', 'смішно',
+					'нарешті', 'врешті', 'загалом', 'взагалі', 'справді', 'насправді',
+					'звичайно', 'безумовно', 'можливо', 'ймовірно', 'здається',
 					'😄', '😅', '🤔', '🙃', '😏', '🤷', '💭', '🎯'
 				]) or
-				# Short witty sentence patterns
-				len(sentence.split()) <= 12
+				# Short witty sentence patterns (increased threshold)
+				len(sentence.split()) <= 15 or
+				# Always treat last sentence as comment if it's short enough
+				(is_last and len(sentence.split()) <= 10)
 			)
 		)
 		
