@@ -18,5 +18,7 @@
   "genie 3 a new frontier for world models",
   "genie 3 новий етап у розвитку світових моделей",
   "building a decoderonly transformer model for text generation",
-  "розроблено трансформермодель лише з декодером для генерації тексту"
+  "розроблено трансформермодель лише з декодером для генерації тексту",
+  "building a transformer model for language translation",
+  "створено трансформерну модель для перекладу мов"
 ]
