@@ -1,7 +1,7 @@
 import logging
 import json
 from typing import Optional, List, Dict
-from urllib.parse import quote
+from urllib.parse import quote, urlparse, parse_qs, urlencode, urlunparse
 
 import requests
 
@@ -75,6 +75,63 @@ def escape_html(text: str) -> str:
 	)
 
 
+def _normalize_media_url(url: str) -> str:
+	"""Normalize media URL to dedupe similar resources (strip common size/tracking params)."""
+	try:
+		o = urlparse(url)
+		qs = parse_qs(o.query, keep_blank_values=True)
+		# Remove common size/tracking params
+		blocked = {"utm_source","utm_medium","utm_campaign","utm_term","utm_content","utm_id","gclid","fbclid","igshid","ref","ref_src","ref_url","ncid","spm","w","width","h","height","sz","s","name"}
+		qs = {k:v for k,v in qs.items() if k not in blocked}
+		new_query = urlencode({k:(v[0] if isinstance(v, list) and v else v) for k,v in qs.items()}, doseq=False)
+		o = o._replace(query=new_query)
+		# Drop trailing slash
+		if o.path.endswith("/") and len(o.path) > 1:
+			o = o._replace(path=o.path.rstrip("/"))
+		return urlunparse(o)
+	except Exception:
+		return url
+
+
+def _is_high_quality_image(url: str, min_bytes: int = 15000, timeout: int = 5) -> bool:
+	"""Quick HEAD check to ensure the image is not a tiny thumbnail."""
+	try:
+		r = requests.head(url, timeout=timeout, allow_redirects=True)
+		ct = (r.headers.get("Content-Type") or "").lower()
+		if "image" not in ct:
+			return False
+		length = r.headers.get("Content-Length")
+		if length and length.isdigit():
+			return int(length) >= min_bytes
+		# No length header — assume OK
+		return True
+	except Exception:
+		return False
+
+
+def _filter_and_dedupe_media(media: Optional[List[Dict]]) -> List[Dict]:
+	if not media:
+		return []
+	seen: set[str] = set()
+	result: List[Dict] = []
+	for m in media:
+		try:
+			t = (m.get("type") or "").strip().lower()
+			u = (m.get("url") or "").strip()
+			if not u or t not in ("photo","video"):
+				continue
+			norm = _normalize_media_url(u)
+			if norm in seen:
+				continue
+			if t == "photo" and not _is_high_quality_image(u):
+				continue
+			seen.add(norm)
+			result.append({"type": t, "url": u})
+		except Exception:
+			continue
+	return result
+
+
 def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url: Optional[str] = None, message_plain: Optional[str] = None, media: Optional[List[Dict]] = None, image_bytes: Optional[bytes] = None) -> None:
 	base_url = f"https://api.telegram.org/bot{bot_token}"
 
@@ -83,6 +140,10 @@ def send_to_telegram(bot_token: str, chat_id: str, message_html: str, image_url:
 	body_only = ""
 	if "\n\n" in message_html:
 		body_only = message_html.split("\n\n", 1)[1]
+
+	# Filter and dedupe media to avoid duplicates and low-quality images
+	if media:
+		media = _filter_and_dedupe_media(media)
 
 	# If media group provided, try to send as album (up to 10 items)
 	if media:
