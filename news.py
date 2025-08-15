@@ -106,15 +106,18 @@ class NewsFetcher:
 					continue
 				seen_titles.add(title_key)
 
-				# Изображение из RSS
+				# Изображение/видео из RSS
 				feed_image = None
 				media_tag = item.find("media:content") or item.find("media:thumbnail")
 				if media_tag and media_tag.get("url"):
 					feed_image = media_tag.get("url")
 				if not feed_image:
 					enclosure = item.find("enclosure")
-					if enclosure and enclosure.get("url") and (enclosure.get("type") or "").startswith("image"):
-						feed_image = enclosure.get("url")
+					if enclosure and enclosure.get("url"):
+						media_type = (enclosure.get("type") or "").lower()
+						# Accept images and videos
+						if media_type.startswith("image") or media_type.startswith("video"):
+							feed_image = enclosure.get("url")
 
 				# Мета со страницы статьи (включая canonical)
 				article_desc = None
@@ -240,12 +243,18 @@ class NewsFetcher:
 				canonical_url = self._canonicalize_url(canon_link)
 				page_url = canonical_url or page_url
 
+			# Search for images and videos
 			for attrs in (
 				{"property": "og:image:secure_url"},
 				{"property": "og:image:url"},
 				{"name": "twitter:image:src"},
 				{"name": "twitter:image"},
 				{"property": "og:image"},
+				{"property": "og:video:secure_url"},
+				{"property": "og:video:url"},
+				{"property": "og:video"},
+				{"name": "twitter:player:stream"},
+				{"name": "twitter:player"},
 			):
 				meta = soup.find("meta", attrs=attrs)
 				if meta and meta.get("content"):

@@ -76,6 +76,7 @@ jobs:
           POST_DELAY_SEC=2
           RECENT_TITLES_MAX=300
           RUN_ONCE=1
+          REQUIRE_MEDIA=1
           EOF
           echo "Created .env file, checking contents:"
           head -3 .env | sed 's/=.*$/=***/' || echo "Failed to read .env"

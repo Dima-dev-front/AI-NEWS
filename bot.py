@@ -145,6 +145,7 @@ def main() -> None:
 	country = os.getenv("COUNTRY", "RU")
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
 	run_once = os.getenv("RUN_ONCE", "").lower() in ("1", "true", "yes", "on")
+	require_media = os.getenv("REQUIRE_MEDIA", "1").lower() in ("1", "true", "yes", "on")
 
 	try:
 		check_interval_min = int(os.getenv("CHECK_INTERVAL_MIN", "60"))
@@ -239,6 +240,10 @@ def main() -> None:
 				# Dedupe with AI title if it differs
 				ai_title_key = title_key(final_title)
 				if ai_title_key and ai_title_key in recent_title_keys_set:
+					continue
+
+				# Skip news without images or videos (if required)
+				if require_media and not image_url:
 					continue
 
 				# Append CTA if present
