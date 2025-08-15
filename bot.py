@@ -148,9 +148,9 @@ def main() -> None:
 	require_media = os.getenv("REQUIRE_MEDIA", "0").lower() in ("1", "true", "yes", "on")
 
 	try:
-		check_interval_min = int(os.getenv("CHECK_INTERVAL_MIN", "60"))
+		check_interval_min = int(os.getenv("CHECK_INTERVAL_MIN", "30"))
 	except ValueError:
-		check_interval_min = 60
+		check_interval_min = 30
 	try:
 		post_delay_sec = int(os.getenv("POST_DELAY_SEC", "60"))
 	except ValueError:
