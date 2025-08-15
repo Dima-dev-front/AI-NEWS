@@ -150,7 +150,7 @@ def main() -> None:
 	rss_feeds = parse_feed_urls(os.getenv("RSS_FEEDS", ""))
 	run_once = os.getenv("RUN_ONCE", "").lower() in ("1", "true", "yes", "on")
 	require_media = os.getenv("REQUIRE_MEDIA", "0").lower() in ("1", "true", "yes", "on")
-	generate_images = os.getenv("GENERATE_AI_IMAGES", "1").lower() in ("1", "true", "yes", "on")
+	generate_images = os.getenv("GENERATE_AI_IMAGES", "0").lower() in ("1", "true", "yes", "on")
 
 	try:
 		check_interval_min = int(os.getenv("CHECK_INTERVAL_MIN", "30"))
