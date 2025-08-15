@@ -2,7 +2,7 @@ import os
 import time
 import logging
 from typing import List, Dict, Optional
-from urllib.parse import quote_plus, urlparse, urljoin, parse_qs, urlunparse, urlencode
+from urllib.parse import urlparse, urljoin, parse_qs, urlunparse, urlencode
 
 import requests
 from bs4 import BeautifulSoup
@@ -20,10 +20,6 @@ class NewsFetcher:
 		self.country = country
 		self.fallback_image_url = fallback_image_url
 		self.feed_urls = [u.strip() for u in (feed_urls or []) if u and u.strip()]
-
-	def _build_feed_url(self) -> str:
-		encoded = quote_plus(self.query)
-		return f"https://news.google.com/rss/search?q={encoded}&hl={self.locale}&gl={self.country}&ceid={self.country}:{self.locale}"
 
 	def fetch(self, max_items: int = 10, timeout_sec: int = 10) -> List[Dict[str, Optional[str]]]:
 		# Используем только явные RSS фиды. Google News отключён.

@@ -1,7 +1,7 @@
 import logging
 import os
 from typing import Optional
-from urllib.parse import quote
+
 
 import requests
 
@@ -170,13 +170,6 @@ def format_message_plain(title: str, summary: str, source_url: str) -> str:
 		parts.append(formatted_summary.strip())
 	text = "\n".join(parts).strip()
 	return text[:4000]
-
-
-def sanitize_url(url: str) -> str:
-	try:
-		return quote(url, safe=":/#?&=@[]!$&'()*+,;%")
-	except Exception:
-		return url
 
 
 def escape_html(text: str) -> str:
