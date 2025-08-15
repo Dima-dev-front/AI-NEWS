@@ -29,6 +29,8 @@ class NewsFetcher:
 		feed_list = self.feed_urls
 		results: List[Dict[str, Optional[str]]] = []
 		per_feed_limit = max(3, max_items // max(1, len(feed_list)))
+		# Cap per-feed items to avoid too many downstream requests
+		per_feed_limit = min(per_feed_limit, 5)
 		headers = {
 			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
 			"Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8",
@@ -135,7 +137,12 @@ class NewsFetcher:
 
 				# Мета со страницы статьи (включая canonical)
 				article_desc = None
-				meta = self._get_article_meta(canon_link)
+				# Skip meta fetch for domains known to block bots (e.g., reddit)
+				host = urlparse(canon_link).netloc.lower()
+				skip_meta_domains = {"www.reddit.com", "reddit.com", "old.reddit.com"}
+				meta = None
+				if host not in skip_meta_domains:
+					meta = self._get_article_meta(canon_link)
 				# Если страница объявляет canonical — используем его для более устойчивой дедупликации
 				if meta and meta.get("canonical_url"):
 					cand = self._canonicalize_url(meta.get("canonical_url"))
@@ -220,7 +227,7 @@ class NewsFetcher:
 			logger.info("Failed to resolve original URL: %s", exc)
 		return None
 
-	def _get_article_meta(self, page_url: str, timeout_sec: int = 10, max_retries: int = 2) -> Optional[Dict[str, Optional[str]]]:
+	def _get_article_meta(self, page_url: str, timeout_sec: int = 10, max_retries: int = 0) -> Optional[Dict[str, Optional[str]]]:
 		headers = {
 			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
 			"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",

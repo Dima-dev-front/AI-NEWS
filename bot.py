@@ -356,7 +356,7 @@ def main() -> None:
 			
 			# Создаем временный fetcher только для текущей категории
 			category_fetcher = NewsFetcher(query=query, locale=locale, country=country, fallback_image_url=fallback_image_url, feed_urls=category_feeds)
-			items = category_fetcher.fetch(max_items=20)
+			items = category_fetcher.fetch(max_items=8)
 			logger.info("Fetched %d items from %s category", len(items), category_names.get(current_category, current_category))
 
 			# Обрабатываем новости последовательно (без AI выбора)
