@@ -72,7 +72,7 @@ docker run --name ai-news --env-file .env --restart unless-stopped ai-news-bot
 Для получения качественных новостей по ИИ, технологиям и науке используйте этот список:
 
 ```
-https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/feed/,https://deepmind.google/blog/rss.xml,https://thegradient.pub/feed/,https://towardsdatascience.com/feed/,https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml,https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml,https://www.theguardian.com/technology/artificialintelligenceai/rss,https://techcrunch.com/category/artificial-intelligence/feed/,https://venturebeat.com/category/ai/feed/,https://www.marktechpost.com/feed/,https://www.analyticsvidhya.com/feed/,https://www.nasa.gov/news-release/feed/,https://www.nasa.gov/feeds/iotd-feed/,https://www.jpl.nasa.gov/feeds/news/,https://www.sciencenews.org/feed,https://www.newscientist.com/section/news/feed/,https://www.sciencedaily.com/rss/all.xml,https://www.space.com/feeds/all
+https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/feed/,https://deepmind.google/blog/rss.xml,https://thegradient.pub/feed/,https://towardsdatascience.com/feed/,https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml,https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml,https://www.theguardian.com/technology/artificialintelligenceai/rss,https://techcrunch.com/category/artificial-intelligence/feed/,https://venturebeat.com/category/ai/feed/,https://www.marktechpost.com/feed/,https://www.analyticsvidhya.com/feed/,https://www.nasa.gov/news-release/feed/,https://www.nasa.gov/feeds/iotd-feed/,https://www.jpl.nasa.gov/feeds/news/,https://www.sciencenews.org/feed,https://www.newscientist.com/section/news/feed/,https://www.sciencedaily.com/rss/all.xml,https://www.space.com/feeds/all,https://electrek.co/feed/,https://insideevs.com/feed/,https://www.defensenews.com/arc/outboundfeeds/rss/,https://breakingdefense.com/feed/,https://spectrum.ieee.org/rss/fulltext,https://www.engadget.com/rss.xml,https://arstechnica.com/feed/,https://github.com/openai/openai-python/releases.atom,https://github.com/microsoft/vscode/releases.atom,https://github.com/tensorflow/tensorflow/releases.atom,https://www.statnews.com/feed/,https://www.fiercebiotech.com/rss/xml
 ```
 
 **Источники включают:**
@@ -98,12 +98,12 @@ https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/fe
 
 **🚗 Автомобили и транспорт:**
 ```
-https://www.motortrend.com/feed/,https://www.caranddriver.com/rss/all/,https://electrek.co/feed/,https://insideevs.com/news/feed/
+https://www.motortrend.com/feed/,https://www.caranddriver.com/rss/all/,https://electrek.co/feed/,https://insideevs.com/feed/
 ```
 
 **⚔️ Военная техника и оборона:**
 ```
-https://www.defensenews.com/rss/defense-news/,https://breakingdefense.com/feed/,https://www.military.com/rss/news
+https://www.defensenews.com/arc/outboundfeeds/rss/,https://breakingdefense.com/feed/,https://www.military.com/rss/news
 ```
 
 **⚙️ Инженерия и технологии:**
