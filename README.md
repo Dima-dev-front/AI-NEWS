@@ -19,7 +19,7 @@
 TELEGRAM_TOKEN=your_bot_token
 CHAT_ID=your_chat_id
 OPENAI_API_KEY=your_openai_key
-RSS_FEEDS=https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/feed/,https://deepmind.google/blog/rss.xml,https://www.aitrends.com/feed/,https://machinelearningmastery.com/blog/feed/
+RSS_FEEDS=https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/feed/,https://deepmind.google/blog/rss.xml,https://thegradient.pub/feed/,https://www.sciencedaily.com/rss/all.xml
 
 # Опциональные
 MODEL_NAME=gpt-4o-mini
@@ -72,7 +72,7 @@ docker run --name ai-news --env-file .env --restart unless-stopped ai-news-bot
 Для получения качественных новостей по ИИ, технологиям и науке используйте этот список:
 
 ```
-https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/feed/,https://deepmind.google/blog/rss.xml,https://www.aitrends.com/feed/,https://machinelearningmastery.com/blog/feed/,https://thegradient.pub/feed/,https://towardsdatascience.com/feed/,https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml,https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml,https://www.aiwire.net/feed/,https://www.theguardian.com/technology/artificialintelligenceai/rss,https://techcrunch.com/category/artificial-intelligence/feed/,https://venturebeat.com/category/ai/feed/,https://www.marktechpost.com/feed/,https://www.analyticsvidhya.com/feed/,https://www.nasa.gov/news-release/feed/,https://www.nasa.gov/feeds/iotd-feed/,https://www.jpl.nasa.gov/feeds/news/,https://spacenews.com/feed/,https://www.sciencenews.org/feed,https://www.newscientist.com/section/news/feed/,https://www.sciencedaily.com/rss/all.xml,https://www.space.com/feeds/all
+https://www.wired.com/feed/tag/ai/latest/rss,https://www.technologyreview.com/feed/,https://deepmind.google/blog/rss.xml,https://thegradient.pub/feed/,https://towardsdatascience.com/feed/,https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml,https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml,https://www.theguardian.com/technology/artificialintelligenceai/rss,https://techcrunch.com/category/artificial-intelligence/feed/,https://venturebeat.com/category/ai/feed/,https://www.marktechpost.com/feed/,https://www.analyticsvidhya.com/feed/,https://www.nasa.gov/news-release/feed/,https://www.nasa.gov/feeds/iotd-feed/,https://www.jpl.nasa.gov/feeds/news/,https://spacenews.com/feed/,https://www.sciencenews.org/feed,https://www.newscientist.com/section/news/feed/,https://www.sciencedaily.com/rss/all.xml,https://www.space.com/feeds/all
 ```
 
 **Источники включают:**
